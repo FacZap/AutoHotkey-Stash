@@ -1,0 +1,33 @@
+2025-07-09 15:18:20.202 [W] Application is installed in the Desktop folder. Catalog WILL NOT be refreshed automatically for this area
+2025-07-09 15:18:20.429 [i] Init done in 2.4428s, including 2.0165s (83%) for the Python interpreter.
+2025-07-09 15:18:20.430 [i] Plugin loaded: Internal.About
+2025-07-09 15:18:20.768 [i] Plugin loaded: Apps.CustomCmds (instance #1)
+2025-07-09 15:18:20.768 [i] Plugin loaded: Apps.Desktop (instance #1)
+2025-07-09 15:18:20.768 [i] Plugin loaded: Apps.EnvPath (instance #1)
+2025-07-09 15:18:20.768 [i] Plugin loaded: Apps.ExtraPaths (instance #1)
+2025-07-09 15:18:20.768 [i] Plugin loaded: Apps.StartMenu (instance #1)
+2025-07-09 15:18:20.867 [i] Plugin loaded: Bookmarks.Bookmarks (instance #1)
+2025-07-09 15:18:20.886 [i] Plugin loaded: Calc.Calc (instance #1)
+2025-07-09 15:18:20.889 [i] Plugin loaded: ControlPanel.ControlPanel (instance #1)
+2025-07-09 15:18:20.892 [i] Plugin loaded: Env.Env (instance #1)
+2025-07-09 15:18:20.899 [i] Plugin loaded: Everything.Everything (instance #1)
+2025-07-09 15:18:20.905 [i] Plugin loaded: FileBrowser.FileBrowser (instance #1)
+2025-07-09 15:18:20.953 [i] Plugin loaded: FilesCatalog.FilesCatalog (instance #1)
+2025-07-09 15:18:21.047 [i] Plugin loaded: FileZilla.FileZilla (instance #1)
+2025-07-09 15:18:21.053 [i] Plugin loaded: GoogleTranslate.GoogleTranslate (instance #1)
+2025-07-09 15:18:21.057 [i] Plugin loaded: PuTTY.PuTTY (instance #1)
+2025-07-09 15:18:21.063 [i] Plugin loaded: RegBrowser.RegBrowser (instance #1)
+2025-07-09 15:18:21.075 [i] Plugin loaded: String.String (instance #1)
+2025-07-09 15:18:21.080 [i] Plugin loaded: TaskSwitcher.TaskSwitcher (instance #1)
+2025-07-09 15:18:21.084 [i] Plugin loaded: URL.URL (instance #1)
+2025-07-09 15:18:21.088 [i] Plugin loaded: WebSearch.WebSearch (instance #1)
+2025-07-09 15:18:21.095 [i] Plugin loaded: WebSuggest.WebSuggest (instance #1)
+2025-07-09 15:18:21.100 [i] Plugin loaded: Winamp.Winamp (instance #1)
+2025-07-09 15:18:21.104 [i] Plugin loaded: WinSCP.WinSCP (instance #1)
+2025-07-09 15:18:21.236 [i] Apps.Desktop: Cataloged 42 items in 0.0 seconds
+2025-07-09 15:18:21.305 [i] Apps.StartMenu: Cataloged 455 items in 0.1 seconds
+2025-07-09 15:18:21.899 [i] Apps.EnvPath: Cataloged 1634 items in 0.7 seconds
+2025-07-09 15:18:22.051 [W] Bookmarks.Bookmarks: places.sqlite file not found in C:\Users\fzpat\AppData\Roaming\Mozilla\Firefox\Profiles/bude0iyp.default
+2025-07-09 15:18:22.601 [i] Bookmarks.Bookmarks: Referenced 7121 bookmarks
+2025-07-09 20:12:44.932 [i] Apps.StartMenu: Cataloged 455 items in 0.4 seconds
+2025-07-09 23:27:39.369 [i] Received end-of-session message

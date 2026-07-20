@@ -1,0 +1,39 @@
+{
+   ".header" : {
+      "creator" : "Keypirinha v2.26 (e037f62)",
+      "creator_url" : "http://keypirinha.com/",
+      "format" : 102,
+      "modified" : "2025-07-09T18:20:04+0000",
+      "type" : "history"
+   },
+   "history" : [
+      {
+         "action" : null,
+         "item" : 9120842333467815951,
+         "label" : "Google Chrome",
+         "time" : "2025-07-09T18:20:04+0000"
+      }
+   ],
+   "sets" : {
+      "actions" : [],
+      "items" : [
+         {
+            "args_hint" : "accepted",
+            "category" : "file",
+            "hit_hint" : "keepall",
+            "id" : 9120842333467815951,
+            "label" : "Google Chrome",
+            "loop_on_suggest" : false,
+            "plugin" : "Apps.StartMenu",
+            "short_desc" : "Start Menu: Programs",
+            "target" : "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Google Chrome.lnk"
+         }
+      ],
+      "terms" : [
+         {
+            "items" : [ 9120842333467815951 ],
+            "search" : "chrome"
+         }
+      ]
+   }
+}

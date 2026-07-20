@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Referencia de comandos AHK — !_STARTUP</title>
+<style>
+  /* Universal: se ve bien en Edge/Chrome (PDF), IE11 embebido (Shell.Explorer) y WebView2.
+     Evita CSS multi-columna, flexbox y emoji (que IE no dibuja bien): usa inline-block. */
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: #f4f5f7;
+    color: #1d2330;
+    line-height: 1.45;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  * { box-sizing: border-box; }
+
+  .page-head {
+    background: #2b3550;
+    background: linear-gradient(120deg, #1d2330 0%, #2b3550 60%, #3b6ef5 140%);
+    color: #fff;
+    padding: 24px 28px 20px;
+  }
+  .page-head h1 { margin: 0; font-size: 24px; }
+  .page-head p { margin: 6px 0 0; color: #c4cde0; font-size: 13px; }
+  .legend { margin-top: 12px; font-size: 12px; color: #c4cde0; }
+  .legend span { display: inline-block; margin: 0 16px 4px 0; }
+
+  main { padding: 18px 16px 36px; text-align: center; font-size: 0; }
+
+  .cat {
+    display: inline-block;
+    vertical-align: top;
+    width: 330px;
+    margin: 0 6px 14px;
+    text-align: left;
+    font-size: 13px;
+    background: #ffffff;
+    border: 1px solid #e3e6ec;
+    border-radius: 10px;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .cat h2 {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 10px 13px;
+    background: #eaf0ff;
+    border-left: 4px solid #3b6ef5;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  td { padding: 6px 13px; vertical-align: top; border-top: 1px solid #eef0f4; }
+  tr:first-child td { border-top: none; }
+  td.keys { white-space: nowrap; width: 1%; }
+  td.desc { color: #2a3142; }
+
+  kbd {
+    display: inline-block;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 11px;
+    padding: 1px 6px;
+    margin: 1px 0;
+    color: #f7f9fc;
+    background: #2b3140;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  kbd.txt { background: #e8edf6; color: #243; border: 1px solid #c9d4e6; }
+  .plus { color: #9aa3b2; font-size: 10px; }
+  .note { color: #6b7280; font-style: italic; font-size: 11px; }
+
+  .foot { padding: 0 28px 28px; color: #6b7280; font-size: 11.5px; text-align: center; }
+
+  @page { size: A4; margin: 11mm 9mm; }
+  @media print { body { background: #fff; } .cat { width: 330px; } }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Referencia de comandos AHK</h1>
+  <p>Generado desde <strong>!_STARTUP_merged.ahk</strong> &nbsp;&middot;&nbsp; AutoHotkey v1 &nbsp;&middot;&nbsp; 30/06/2026</p>
+  <div class="legend">
+    <span><kbd>Win</kbd> = tecla Windows</span>
+    <span><kbd>RAlt</kbd> = Alt derecho</span>
+    <span><kbd>LCtrl</kbd> = Ctrl izquierdo</span>
+    <span><kbd class="txt">texto</kbd> = autotexto: se escribe el atajo y se reemplaza</span>
+  </div>
+</div>
+
+<main>
+
+  <div class="cat">
+    <h2>Multimedia / Volumen</h2>
+    <table>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>&larr;</kbd></td><td class="desc">Pista anterior</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>A</kbd></td><td class="desc">Reproducir / Pausa</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>&rarr;</kbd></td><td class="desc">Pista siguiente</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num 2</kbd></td><td class="desc">Bajar volumen</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num 8</kbd></td><td class="desc">Subir volumen</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num 3</kbd></td><td class="desc">Silenciar (mute)</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num 4</kbd></td><td class="desc">Pista anterior</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num 6</kbd></td><td class="desc">Pista siguiente</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num 5</kbd></td><td class="desc">Reproducir / Pausa</td></tr>
+      <tr><td class="keys"><kbd>LWin</kbd><span class="plus">+</span><kbd>Rueda &uarr;</kbd></td><td class="desc">Subir volumen</td></tr>
+      <tr><td class="keys"><kbd>LWin</kbd><span class="plus">+</span><kbd>Rueda &darr;</kbd></td><td class="desc">Bajar volumen</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Brillo de pantalla</h2>
+    <table>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>AvP&aacute;g</kbd></td><td class="desc">Subir brillo (+10)</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>ReP&aacute;g</kbd></td><td class="desc">Bajar brillo (&minus;10)</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>S&iacute;mbolos y teclas</h2>
+    <table>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>.</kbd></td><td class="desc">Escribe <kbd class="txt">&gt;</kbd></td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>,</kbd></td><td class="desc">Escribe <kbd class="txt">&lt;</kbd></td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Num .</kbd></td><td class="desc">Escribe <kbd class="txt">,</kbd></td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>W</kbd></td><td class="desc">Flecha arriba (&uarr;)</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>S</kbd></td><td class="desc">Flecha abajo (&darr;)</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Num &minus;</kbd></td><td class="desc">Guion corto <kbd class="txt">&ndash;</kbd></td></tr>
+      <tr><td class="keys"><kbd>Alt</kbd><span class="plus">+</span><kbd>Num &minus;</kbd></td><td class="desc">Guion largo <kbd class="txt">&mdash;</kbd></td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>{</kbd></td><td class="desc">Maximizar ventana activa</td></tr>
+      <tr><td class="keys"><kbd>RAlt</kbd><span class="plus">+</span><kbd>-</kbd></td><td class="desc">Minimizar ventana activa</td></tr>
+      <tr><td class="keys"><kbd>Shift</kbd><span class="plus">+</span><kbd>Num /</kbd></td><td class="desc">Escribe <kbd class="txt">\</kbd></td></tr>
+      <tr><td class="keys"><kbd>RCtrl</kbd><span class="plus">+</span><kbd>Num 5</kbd></td><td class="desc">Tab</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Matlab</h2>
+    <table>
+      <tr><td class="keys"><kbd>Alt</kbd><span class="plus">+</span><kbd>F9</kbd></td><td class="desc">Selecciona la l&iacute;nea actual y la ejecuta (End &rarr; Shift+Home &rarr; F9)</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Autotexto &mdash; fecha / hora</h2>
+    <table>
+      <tr><td class="keys"><kbd class="txt">knnn</kbd></td><td class="desc">D&iacute;a de la semana (ej. <em>Lunes</em>)</td></tr>
+      <tr><td class="keys"><kbd class="txt">kddd</kbd></td><td class="desc">dd/MM/yy &mdash; hoy</td></tr>
+      <tr><td class="keys"><kbd class="txt">kdd1</kbd></td><td class="desc">dd/MM/yy &mdash; ma&ntilde;ana</td></tr>
+      <tr><td class="keys"><kbd class="txt">kd1d</kbd></td><td class="desc">dd/MM/yy &mdash; ayer</td></tr>
+      <tr><td class="keys"><kbd class="txt">ksss</kbd></td><td class="desc">dd/MM &mdash; hoy (simplificado)</td></tr>
+      <tr><td class="keys"><kbd class="txt">skkk</kbd></td><td class="desc">MM.dd &mdash; simplificado inverso</td></tr>
+      <tr><td class="keys"><kbd class="txt">kss1</kbd></td><td class="desc">dd/MM &mdash; ma&ntilde;ana</td></tr>
+      <tr><td class="keys"><kbd class="txt">ks1s</kbd></td><td class="desc">dd/MM &mdash; ayer</td></tr>
+      <tr><td class="keys"><kbd class="txt">kmmd</kbd></td><td class="desc">MM.dd</td></tr>
+      <tr><td class="keys"><kbd class="txt">kjjd</kbd></td><td class="desc">dd-MM-yy</td></tr>
+      <tr><td class="keys"><kbd class="txt">kjj1</kbd></td><td class="desc">dd-MM-yy &mdash; ma&ntilde;ana</td></tr>
+      <tr><td class="keys"><kbd class="txt">kyyy</kbd></td><td class="desc">dd-MM-yy HH:mm</td></tr>
+      <tr><td class="keys"><kbd class="txt">khhh</kbd></td><td class="desc">HH:mm &mdash; hora actual</td></tr>
+      <tr><td class="keys"><kbd class="txt">kaaa</kbd></td><td class="desc">yyMMdd</td></tr>
+      <tr><td class="keys"><kbd class="txt">kxxx</kbd></td><td class="desc">yyMMddHHmmss</td></tr>
+      <tr><td class="keys"><kbd class="txt">kzzz</kbd></td><td class="desc">yy_MM_dd_HHmm</td></tr>
+      <tr><td class="keys"><kbd class="txt">khdx</kbd></td><td class="desc">yy-MM-dd_HH-mm</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Autotexto &mdash; s&iacute;mbolos y rutas</h2>
+    <table>
+      <tr><td class="keys"><kbd class="txt">k6ini</kbd></td><td class="desc">Escribe <kbd class="txt">&lt;</kbd></td></tr>
+      <tr><td class="keys"><kbd class="txt">k6fin</kbd></td><td class="desc">Escribe <kbd class="txt">&gt;</kbd></td></tr>
+      <tr><td class="keys"><kbd class="txt">kuser</kbd></td><td class="desc">Ruta del perfil de usuario (%userprofile%)</td></tr>
+      <tr><td class="keys"><kbd class="txt">kapp</kbd></td><td class="desc">Ruta de AppData (%appdata%)</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Calendario</h2>
+    <table>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>Num 5</kbd></td><td class="desc">Abre un calendario. Doble clic o <kbd>Enter</kbd> copia la fecha (dd/MM/yyyy) al portapapeles; <kbd>Esc</kbd> cierra.</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Convertir texto</h2>
+    <table>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F2</kbd></td><td class="desc">Reemplaza espacios por <kbd class="txt">_</kbd> (selecci&oacute;n)</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F2</kbd></td><td class="desc">Reemplaza espacios por <kbd class="txt">-</kbd></td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F3</kbd></td><td class="desc">Portapapeles &rarr; MAY&Uacute;SCULAS</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F3</kbd></td><td class="desc">Portapapeles &rarr; min&uacute;sculas</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="desc">Portapapeles &rarr; Capitalizado (Title)</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="desc">Invierte may&uacute;sculas / min&uacute;sculas</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Lanzadores</h2>
+    <table>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>|</kbd></td><td class="desc">WiseReminder (abrir / activar / restaurar)</td></tr>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>|</kbd></td><td class="desc">Hourglass (abrir / activar)</td></tr>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>F3</kbd></td><td class="desc">Macro Recorder</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>R</kbd></td><td class="desc">AHK Manager (gestor de scripts, v2)</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Abrir / mostrar apps y carpetas</h2>
+    <table>
+      <tr><td class="keys"><kbd>Shift</kbd><span class="plus">+</span><kbd>F7</kbd></td><td class="desc">Chrome (abrir / activar / minimizar)</td></tr>
+      <tr><td class="keys"><kbd>Shift</kbd><span class="plus">+</span><kbd>F8</kbd></td><td class="desc">Carpeta Downloads</td></tr>
+      <tr><td class="keys"><kbd>LCtrl</kbd><span class="plus">+</span><kbd>F8</kbd></td><td class="desc">Carpeta Tesina (D:\Facultad\!PROYECTO)</td></tr>
+      <tr><td class="keys"><kbd>LCtrl</kbd><span class="plus">+</span><kbd>F9</kbd></td><td class="desc">D:\Facultad</td></tr>
+      <tr><td class="keys"><kbd>Shift</kbd><span class="plus">+</span><kbd>F9</kbd></td><td class="desc">D:\Archivos\Lectura</td></tr>
+      <tr><td class="keys"><kbd>Shift</kbd><span class="plus">+</span><kbd>F10</kbd></td><td class="desc">E:\DESCARGAS st250807</td></tr>
+      <tr><td class="keys"><kbd>LCtrl</kbd><span class="plus">+</span><kbd>F10</kbd></td><td class="desc">Escritorio</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Mover / redimensionar ventanas</h2>
+    <table>
+      <tr><td class="keys"><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic izq.</kbd> <span class="note">(arrastrar)</span></td><td class="desc">Mover ventana</td></tr>
+      <tr><td class="keys"><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic der.</kbd> <span class="note">(arrastrar)</span></td><td class="desc">Redimensionar ventana</td></tr>
+      <tr><td class="keys"><kbd>CapsLock</kbd><span class="plus">+</span><kbd>Clic izq.</kbd> <span class="note">(arrastrar)</span></td><td class="desc">Mover ventana</td></tr>
+      <tr><td class="keys"><kbd>Bot&oacute;n central</kbd><span class="plus">+</span><kbd>Clic izq.</kbd></td><td class="desc">Mover ventana (<kbd>Esc</kbd> cancela)</td></tr>
+      <tr><td class="keys"><kbd>2&times; CapsLock</kbd><span class="plus">+</span><kbd>Clic izq.</kbd></td><td class="desc">Minimizar ventana bajo el cursor</td></tr>
+      <tr><td class="keys"><kbd>2&times; CapsLock</kbd><span class="plus">+</span><kbd>Clic der.</kbd></td><td class="desc">Maximizar / Restaurar</td></tr>
+      <tr><td class="keys"><kbd>2&times; CapsLock</kbd><span class="plus">+</span><kbd>Clic central</kbd></td><td class="desc">Cerrar ventana</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic central</kbd></td><td class="desc">Redimensionar a 300&times;300</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic der.</kbd></td><td class="desc">Restaurar y centrar la ventana</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Guardar y ciclar ventanas</h2>
+    <table>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>F5</kbd></td><td class="desc">Agregar ventana activa a la lista</td></tr>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="desc">Ciclar entre las ventanas guardadas</td></tr>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F5</kbd></td><td class="desc">Quitar ventana activa de la lista</td></tr>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="desc">Mostrar la lista (se oculta al soltar Win)</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Timer &rarr; Win+Alt+S</h2>
+    <table>
+      <tr><td class="keys"><kbd>Win</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>U</kbd> <span class="note">luego</span> <kbd>I</kbd></td><td class="desc">Abre la GUI del timer (la <kbd>I</kbd> en &lt; 1 s)</td></tr>
+      <tr><td class="keys"><span class="note">autom&aacute;tico</span></td><td class="desc">Al cumplirse el tiempo o por inactividad &rarr; env&iacute;a <kbd>Win</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd></td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Contador de inputs (chat)</h2>
+    <table>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Win</kbd><span class="plus">+</span><kbd>T</kbd></td><td class="desc">Inserta marcador con n&deg; y timestamp</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Win</kbd><span class="plus">+</span><kbd>R</kbd></td><td class="desc">1&times; resetea &middot; 2&times; (&lt;700 ms) abre la GUI manual</td></tr>
+    </table>
+  </div>
+
+  <div class="cat">
+    <h2>Edici&oacute;n / macros</h2>
+    <table>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>CapsLock</kbd></td><td class="desc">Enter</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>CapsLock</kbd></td><td class="desc">4&times; Tab + Enter</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>D</kbd></td><td class="desc">Fix PDF Links (secuencia de edici&oacute;n)</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>X</kbd></td><td class="desc">Macro Instagram (pegar y publicar)</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>X</kbd></td><td class="desc">Macro Instagram (variante 2)</td></tr>
+      <tr><td class="keys"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>K</kbd></td><td class="desc">Kill All: cierra ventanas visibles</td></tr>
+    </table>
+  </div>
+
+</main>
+
+<div class="foot">
+  Generado desde <strong>ahk_STARTUP/!_STARTUP_merged.ahk</strong>. No incluye la carpeta <em>!_contained</em> ni <em>AHK_Manager.ahk</em> (v2).
+</div>
+
+</body>
+</html>

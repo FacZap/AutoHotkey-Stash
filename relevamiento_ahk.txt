@@ -1,0 +1,24 @@
+
+ahk:
+alt-windows
+
+header:
+autoname
+brightness
+calendar gui
+capswindowscontrol
+convertcase
+pausePlayMedia
+openShowApps
+MaxMin
+mouseWheelVolume
+rightHandMusic
+righTab
+windowsKill   XXX
+
+agregar:
+leftEnter
+macroInsta
+fixPdf
+runLineMatlab
+arrowsUpDown

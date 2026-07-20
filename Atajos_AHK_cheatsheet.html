@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atajos AutoHotkey — Cheatsheet</title>
+<style>
+  :root{
+    --bg:#0f1116; --card:#1a1d26; --card2:#20242f; --ink:#e8eaf0;
+    --muted:#9aa3b2; --accent:#6ea8fe; --accent2:#7ee0c0; --line:#2c3140;
+    --kbd-bg:#2a2f3d; --kbd-bd:#454c5e; --warn:#ffcf6b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:linear-gradient(160deg,#0c0e13,#12151d);
+    color:var(--ink); font:15px/1.5 "Segoe UI",system-ui,Arial,sans-serif;
+    padding:32px 28px 60px;
+  }
+  header{max-width:1200px;margin:0 auto 26px}
+  h1{font-size:28px;margin:0 0 6px;letter-spacing:.3px}
+  .sub{color:var(--muted);font-size:14px}
+  .legend{color:var(--muted);font-size:13px;margin-top:10px}
+  .grid{
+    max-width:1200px;margin:0 auto;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));
+    gap:18px;align-items:start;
+  }
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.25);
+    break-inside:avoid;
+  }
+  .card h2{
+    margin:0;padding:13px 16px;font-size:16px;
+    background:var(--card2);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:10px;
+  }
+  .card h2 .file{color:var(--muted);font-size:11.5px;font-weight:400;margin-left:auto}
+  .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  table{width:100%;border-collapse:collapse}
+  td{padding:8px 16px;vertical-align:top;border-top:1px solid var(--line)}
+  tr:first-child td{border-top:none}
+  td.k{white-space:nowrap;width:1%}
+  td.d{color:var(--ink)}
+  .grp{
+    padding:7px 16px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;
+    color:var(--accent2);background:rgba(126,224,192,.06);border-top:1px solid var(--line);
+  }
+  kbd{
+    display:inline-block;background:var(--kbd-bg);border:1px solid var(--kbd-bd);
+    border-bottom-width:2px;border-radius:6px;padding:1px 7px;margin:1px 0;
+    font:12.5px/1.6 "Consolas",monospace;color:#fff;white-space:nowrap;
+  }
+  .plus{color:var(--muted);padding:0 2px;font-size:11px}
+  .hs{
+    display:inline-block;background:rgba(110,168,254,.12);border:1px dashed #3c5688;
+    border-radius:6px;padding:1px 7px;font:12.5px/1.6 "Consolas",monospace;color:#bcd3ff;
+  }
+  .out{color:var(--muted);font-size:12.5px}
+  .note{
+    max-width:1200px;margin:24px auto 0;padding:14px 18px;border-radius:12px;
+    background:rgba(255,207,107,.08);border:1px solid #5a4a22;color:#f0dca8;font-size:13px;
+  }
+  .note b{color:var(--warn)}
+  footer{max-width:1200px;margin:30px auto 0;color:var(--muted);font-size:12px;text-align:center}
+  @media print{
+    body{background:#fff;color:#111;padding:10px}
+    .card{box-shadow:none;border-color:#ccc;background:#fff}
+    .card h2{background:#f1f3f7;color:#111}
+    .card h2 .file{color:#666}
+    kbd{background:#eef1f6;color:#111;border-color:#b9c0cf}
+    .hs{background:#eef4ff;color:#1a3e7a}
+    td.d,.out{color:#222}
+    .grp{color:#0a7;background:#eafaf4}
+    h1,.sub,.legend{color:#111}
+    .note{background:#fff7e6;color:#5a4a22}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>⌨️ Atajos de AutoHotkey — Hoja de referencia</h1>
+  <div class="sub">Resumen de hotkeys de los scripts activos. Generado el 03/06/2026.</div>
+  <div class="legend">
+    <kbd>tecla</kbd> = atajo &nbsp;·&nbsp;
+    <span class="hs">kcodigo</span> = autotexto (se escribe al teclear el código) &nbsp;·&nbsp;
+    <span class="out">→ resultado</span>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- ====================== !_STARTUP ====================== -->
+  <div class="card">
+    <h2><span class="dot" style="background:#6ea8fe"></span>Inicio principal <span class="file">!_STARTUP.ahk</span></h2>
+    <table>
+      <tr><td colspan="2" class="grp">Multimedia / Volumen</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>←</kbd></td><td class="d">Pista anterior</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>A</kbd></td><td class="d">Play / Pausa</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>→</kbd></td><td class="d">Pista siguiente</td></tr>
+      <tr><td class="k"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num2</kbd> / <kbd>Num8</kbd></td><td class="d">Bajar / Subir volumen</td></tr>
+      <tr><td class="k"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num3</kbd></td><td class="d">Silenciar</td></tr>
+      <tr><td class="k"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num4</kbd> / <kbd>Num6</kbd></td><td class="d">Pista anterior / siguiente</td></tr>
+      <tr><td class="k"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Num5</kbd></td><td class="d">Play / Pausa</td></tr>
+      <tr><td class="k"><kbd>LWin</kbd><span class="plus">+</span><kbd>Rueda ↑/↓</kbd></td><td class="d">Subir / Bajar volumen</td></tr>
+
+      <tr><td colspan="2" class="grp">Símbolos y teclas</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>.</kbd> / <kbd>,</kbd></td><td class="d">Escribe <span class="out">&gt;</span> / <span class="out">&lt;</span></td></tr>
+      <tr><td class="k"><kbd>RCtrl</kbd><span class="plus">+</span><kbd>Num.</kbd></td><td class="d">Escribe <span class="out">,</span> (coma)</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>W</kbd> / <kbd>S</kbd></td><td class="d">Flecha arriba / abajo</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Num-</kbd></td><td class="d">Guion corto <span class="out">–</span></td></tr>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Num-</kbd></td><td class="d">Guion largo <span class="out">—</span></td></tr>
+      <tr><td class="k"><kbd>RAlt</kbd><span class="plus">+</span><kbd>{</kbd> / <kbd>-</kbd></td><td class="d">Maximizar / Minimizar ventana</td></tr>
+      <tr><td class="k"><kbd>Shift</kbd><span class="plus">+</span><kbd>Num/</kbd></td><td class="d">Escribe <span class="out">\</span></td></tr>
+      <tr><td class="k"><kbd>RCtrl</kbd><span class="plus">+</span><kbd>Num5</kbd></td><td class="d">Tab</td></tr>
+
+      <tr><td colspan="2" class="grp">Macros y herramientas</td></tr>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>F9</kbd></td><td class="d">Matlab: selecciona la línea y ejecuta (F9)</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>Num5</kbd></td><td class="d">Abre calendario (copia fecha dd/MM/yyyy)</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F2</kbd></td><td class="d">Selección: espacios → <span class="out">_</span></td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F2</kbd></td><td class="d">Selección: espacios → <span class="out">-</span></td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F3</kbd> / <kbd>Shift</kbd><span class="plus">+</span><kbd>F3</kbd></td><td class="d">Portapapeles a MAYÚS / minús</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="d">Capitalizado (Tipo Título)</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="d">Invertir mayús/minús</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>D</kbd></td><td class="d">Fix PDF: limpia y normaliza el link</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>|</kbd></td><td class="d">Abre / activa WiseReminder</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>|</kbd></td><td class="d">Abre / activa Hourglass</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>CapsLock</kbd></td><td class="d">Enter</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>CapsLock</kbd></td><td class="d">4× Tab + Enter</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>X</kbd></td><td class="d">Macro Instagram (comentar + responder)</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>X</kbd></td><td class="d">Macro Instagram (secuencia alternativa)</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>K</kbd></td><td class="d">Cierra ventanas visibles (salta navegadores y escritorio)</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>F3</kbd></td><td class="d">Lanza Macro Recorder</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic Med</kbd></td><td class="d">Redimensiona la ventana activa a 300×300 (mantiene posición)</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic Der</kbd></td><td class="d">Restaura y centra la ventana en pantalla</td></tr>
+
+      <tr><td colspan="2" class="grp">Contador de conversación</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Win</kbd><span class="plus">+</span><kbd>T</kbd></td><td class="d">Inserta marcador “Conversation User Input n° N @ fecha”</td></tr>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>Win</kbd><span class="plus">+</span><kbd>R</kbd></td><td class="d">1×: resetea contador · 2× (&lt;700 ms): abre GUI manual</td></tr>
+
+      <tr><td colspan="2" class="grp">Timer → Win+Alt+S</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>Alt</kbd><span class="plus">+</span><kbd>U</kbd> <span class="plus">luego</span> <kbd>I</kbd></td><td class="d">Abre GUI de timer (min:seg). Al cumplirse el tiempo, o tras X min de inactividad (configurable), envía <span class="out">Win+Alt+S</span></td></tr>
+
+      <tr><td colspan="2" class="grp">Autotexto · símbolos y rutas</td></tr>
+      <tr><td class="k"><span class="hs">k6ini</span> / <span class="hs">k6fin</span></td><td class="d"><span class="out">&lt;</span> / <span class="out">&gt;</span></td></tr>
+      <tr><td class="k"><span class="hs">kuser</span> / <span class="hs">kapp</span></td><td class="d">Ruta del perfil de usuario / AppData</td></tr>
+
+      <tr><td colspan="2" class="grp">Autotexto · fecha y hora</td></tr>
+      <tr><td class="k"><span class="hs">knnn</span></td><td class="d">Día de la semana</td></tr>
+      <tr><td class="k"><span class="hs">kddd</span> · <span class="hs">kdd1</span> · <span class="hs">kd1d</span></td><td class="d">dd/MM/yy · mañana · ayer</td></tr>
+      <tr><td class="k"><span class="hs">ksss</span> · <span class="hs">kss1</span> · <span class="hs">ks1s</span></td><td class="d">dd/MM · mañana · ayer</td></tr>
+      <tr><td class="k"><span class="hs">skkk</span> · <span class="hs">kmmd</span></td><td class="d">MM.dd</td></tr>
+      <tr><td class="k"><span class="hs">kjjd</span> · <span class="hs">kjj1</span></td><td class="d">dd-MM-yy · mañana</td></tr>
+      <tr><td class="k"><span class="hs">kyyy</span> · <span class="hs">khhh</span></td><td class="d">dd-MM-yy HH:mm · HH:mm</td></tr>
+      <tr><td class="k"><span class="hs">kaaa</span></td><td class="d">yyMMdd</td></tr>
+      <tr><td class="k"><span class="hs">kxxx</span> · <span class="hs">kzzz</span></td><td class="d">yyMMddHHmmss · yy_MM_dd_HHmm</td></tr>
+      <tr><td class="k"><span class="hs">khdx</span></td><td class="d">yy-MM-dd_HH-mm</td></tr>
+
+      <tr><td colspan="2" class="grp">Autotexto · datos personales (en !_personal.ahk)</td></tr>
+      <tr><td class="k"><span class="hs">kfz</span></td><td class="d">Nombre completo</td></tr>
+      <tr><td class="k"><span class="hs">kzf</span> · <span class="hs">kmail2</span> · <span class="hs">khmail</span> · <span class="hs">khcds</span></td><td class="d">Direcciones de correo</td></tr>
+      <tr><td class="k"><span class="hs">kcel</span> · <span class="hs">kdni</span></td><td class="d">Celular · DNI</td></tr>
+      <tr><td class="k"><span class="hs">kleg</span> · <span class="hs">keugeleg</span></td><td class="d">Legajos</td></tr>
+    </table>
+  </div>
+
+  <!-- ====================== Cycler ====================== -->
+  <div class="card">
+    <h2><span class="dot" style="background:#7ee0c0"></span>Ciclador de ventanas <span class="file">Cycler-Window-v3.ahk</span></h2>
+    <table>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>F5</kbd></td><td class="d">Guarda la ventana activa en la lista</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="d">Cicla entre las ventanas guardadas</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F5</kbd></td><td class="d">Quita la ventana activa de la lista</td></tr>
+      <tr><td class="k"><kbd>Win</kbd><span class="plus">+</span><kbd>Shift</kbd><span class="plus">+</span><kbd>F4</kbd></td><td class="d">Muestra la lista en un GUI (se oculta al soltar Win)</td></tr>
+    </table>
+  </div>
+
+  <!-- ====================== AltWindowsControl ====================== -->
+  <div class="card">
+    <h2><span class="dot" style="background:#ffb86b"></span>Mover / redimensionar (Alt) <span class="file">AltWindowsControl.ahk</span></h2>
+    <table>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic Izq</kbd> arrastrar</td><td class="d">Mover la ventana bajo el cursor</td></tr>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Clic Der</kbd> arrastrar</td><td class="d">Redimensionar la ventana</td></tr>
+      <tr><td class="k"><kbd>Alt Alt</kbd><span class="plus">+</span><kbd>Clic Izq</kbd></td><td class="d">Minimizar (doble-Alt)</td></tr>
+      <tr><td class="k"><kbd>Alt Alt</kbd><span class="plus">+</span><kbd>Clic Der</kbd></td><td class="d">Maximizar / Restaurar (doble-Alt)</td></tr>
+      <tr><td class="k"><kbd>Alt Alt</kbd><span class="plus">+</span><kbd>Clic Med</kbd></td><td class="d">Cerrar (doble-Alt)</td></tr>
+    </table>
+  </div>
+
+  <!-- ====================== CapsWindowsControl ====================== -->
+  <div class="card">
+    <h2><span class="dot" style="background:#c89bff"></span>Arrastrar ventana (CapsLock) <span class="file">CapsWindowsControl.ahk</span></h2>
+    <table>
+      <tr><td class="k"><kbd>CapsLock</kbd><span class="plus">+</span><kbd>Clic Izq</kbd> arrastrar</td><td class="d">Mover la ventana desde cualquier punto</td></tr>
+      <tr><td class="k"><kbd>Clic Med</kbd><span class="plus">+</span><kbd>Clic Izq</kbd> arrastrar</td><td class="d">Igual: mover la ventana (botón central)</td></tr>
+    </table>
+  </div>
+
+  <!-- ====================== Brightness ====================== -->
+  <div class="card">
+    <h2><span class="dot" style="background:#ffe27a"></span>Brillo de pantalla <span class="file">Brightness.ahk</span></h2>
+    <table>
+      <tr><td class="k"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Re Pág</kbd></td><td class="d">Subir brillo (+10)</td></tr>
+      <tr><td class="k"><kbd>RAlt</kbd><span class="plus">+</span><kbd>Av Pág</kbd></td><td class="d">Bajar brillo (−10)</td></tr>
+    </table>
+  </div>
+
+  <!-- ====================== Dashes ====================== -->
+  <div class="card">
+    <h2><span class="dot" style="background:#9aa3b2"></span>Guiones <span class="file">dashes.ahk</span></h2>
+    <table>
+      <tr><td class="k"><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Num-</kbd></td><td class="d">Guion largo <span class="out">—</span></td></tr>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Num-</kbd></td><td class="d">Guion corto <span class="out">–</span></td></tr>
+    </table>
+  </div>
+
+  <!-- ====================== Checkmark ====================== -->
+  <div class="card">
+    <h2><span class="dot" style="background:#7ee0c0"></span>Tilde y flechas <span class="file">checkmark.ahk</span></h2>
+    <table>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Ctrl</kbd><span class="plus">+</span><kbd>F10</kbd></td><td class="d">Escribe <span class="out">✔</span></td></tr>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Num2</kbd></td><td class="d">Escribe <span class="out">↓</span></td></tr>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Num8</kbd></td><td class="d">Escribe <span class="out">↑</span></td></tr>
+      <tr><td class="k"><kbd>Alt</kbd><span class="plus">+</span><kbd>Ctrl</kbd><span class="plus">+</span><kbd>Num6</kbd></td><td class="d">Escribe <span class="out">→</span></td></tr>
+    </table>
+  </div>
+
+</div>
+
+<div class="note">
+  <b>⚠ Posibles conflictos de teclas</b> — si tenés varios scripts corriendo a la vez:
+  <ul style="margin:8px 0 0;padding-left:20px">
+    <li><kbd>Ctrl</kbd>/<kbd>Alt</kbd><span class="plus">+</span><kbd>Num-</kbd> están definidos en <b>!_STARTUP</b> y en <b>dashes.ahk</b> con el guion invertido (corto ↔ largo). Conviene correr solo uno.</li>
+    <li>Las flechas y la tilde de <b>checkmark.ahk</b> usan <kbd>Alt</kbd>+<kbd>Ctrl</kbd>+Numpad; <b>!_STARTUP</b> usa <kbd>RAlt</kbd>+Numpad. No chocan, pero quedan cerca.</li>
+    <li><kbd>CapsLock</kbd> la usan <b>CapsWindowsControl</b> (arrastre) y <b>AltWindowsControl</b> (doble-Alt detecta CapsLock); evitá correrlos juntos.</li>
+    <li><b>!_STARTUP</b> usa <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Clic Der/Med</kbd> (redimensionar/centrar) y <b>AltWindowsControl</b> usa <kbd>Alt</kbd>+<kbd>Clic Der/Med</kbd> (redimensionar/cerrar). Llevan modificadores distintos, pero quedan muy cerca.</li>
+  </ul>
+</div>
+
+<footer>Cheatsheet generado automáticamente · imprimí a PDF con Ctrl+P (elegí “Guardar como PDF”).</footer>
+</body>
+</html>
