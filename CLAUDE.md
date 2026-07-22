@@ -1,0 +1,87 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Running Scripts
+
+AutoHotkey scripts are run directly — there is no build step.
+
+```powershell
+# Run a script (requires AutoHotkey installed)
+AutoHotkey.exe .\^^AHK_Unified_Master.ahk
+
+# Reload a running script from within AHK (send Reload message via AHK_Manager GUI)
+# Ctrl+Alt+R opens the AHK Manager GUI for managing all running scripts
+```
+
+To test a modified script: terminate the running instance, then launch the updated file. The AHK_Manager GUI (AHK_Manager.ahk) provides Reload/Suspend/Pause/Kill controls for any running AHK process.
+
+## Architecture
+
+### Primary entry point
+
+`^^AHK_Unified_Master.ahk` is the consolidated master script (~1000 lines, AHK v2.0.18+). It replaces 23+ individual scripts and is the preferred way to run all automation in a single process. Individual `.ahk` files still exist alongside it for reference, development, or standalone use.
+
+### Why two forms exist (individual scripts + unified master)
+
+AHK v1 and v2 cannot run in the same process. The master was created to consolidate everything into one v2 executable. Individual scripts are a mix of v1 and v2 — those still being maintained individually are v2; v1 ones are candidates for migration into the master.
+
+### Script categories
+
+| Category | Example scripts |
+|---|---|
+| Keyboard/input remapping | `arrows-keystrokes`, `dashes`, `backwards-slash`, `right_tab`, `checkmark` |
+| Text automation | `autodate` (hotstrings like `k+ddd`), `ConvertCase`, `createTXT`, `logger` |
+| Window management | `Cycler_Windows_v3`, `move_resize`, `resize`, `kill_all` |
+| System control | `brightness` (WMI), `volume`, `mute`, `pauseplay` |
+| App launchers | `find_wise_reminder`, `open_hourglass`, `url_chrome` |
+| Time utilities | `calendar`, `Sleep_Timer`, `Show_Time` |
+| Meta / management | `AHK_Manager`, `_Check_Starters`, `^RUN_starters` |
+
+### Management scripts
+
+- `AHK_Manager.ahk` — GUI dashboard; lists running AHK processes with Reload/Suspend/Pause/Kill buttons. Triggered via `Ctrl+Alt+R`.
+- `_Check_Starters.ahk` — status-checker GUI for 20+ configured scripts/programs.
+- `^RUN_starters.ahk` — auto-launches RBTray.exe and Wise Reminder at startup.
+- `^CLOSE_starters.ahk` — mass-terminates managed scripts.
+
+### External utilities (bundled)
+
+- `RBTray-4_3/` — Minimize-to-tray utility (C++ binary + source). Launched by `^RUN_starters.ahk`.
+- `tigerlilys-Screen-Dimmer-master/` — Multi-monitor screen dimmer (AHK v2, standalone).
+
+### Archived scripts
+
+- `not in use/` — 11 obsolete/replaced scripts, kept for reference.
+- `broken/` — 2 non-functional scripts pending fix or deletion.
+- `semi-uso/` — 4 partially-used scripts.
+
+## Key Patterns
+
+**Hotkey binding conventions:**
+- `Win+Key` — primary utilities (brightness, calendar, window cycling)
+- `Ctrl+Alt+Key` — secondary actions (text/keyboard nav, media control)
+- `Win+Numpad` — quick media/numeric actions
+- `k+xxx` hotstrings — auto-expand to dates/timestamps (`k+ddd`, `k+hhh`, `k+xxx`)
+- `Alt+MouseButton` — window move/resize
+
+**GUI pattern:** Scripts that need user interaction create AHK Gui objects inline (no external framework). Examples: calendar picker, file creator, conversation counter, window cycler list.
+
+**WMI usage:** `brightness.ahk` controls monitor brightness via `WmiMonitorBrightness` / `wmiMonitorBrightNessMethods` COM queries — not via Windows API.
+
+**Inter-process messaging:** `AHK_Manager.ahk` uses `PostMessage` to send control signals (Reload, Suspend, Pause) to other AHK processes by hwnd.
+
+**Clipboard manipulation:** `ConvertCase.ahk` saves/restores clipboard to avoid clobbering user content during text transformations.
+
+## Hardcoded Paths to Be Aware Of
+
+Several scripts contain machine-specific absolute paths:
+- VS Code: `C:\Users\fzapata\AppData\Local\Programs\Microsoft VS Code\Code.exe`
+- Wise Reminder: `C:\Program Files (x86)\Wise\Wise Reminder\WiseReminder.exe`
+- RBTray: `C:\autohotkey\RBTray-4_3\64bit\RBTray.exe`
+
+When modifying scripts that launch external programs, verify these paths are still valid for the target machine.
+
+## Reference Documentation
+
+`AHK_Unified_Master_Referencia.html` (and `.pdf`) contains a dark-themed reference table of all hotkeys defined in the unified master — useful for checking for conflicts before adding new bindings.

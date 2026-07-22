@@ -1,0 +1,1 @@
+﻿#F10::SendRaw /Data::[extracao_UBRL]

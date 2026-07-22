@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>AHK_Unified_Master.ahk — Referencia de comandos</title>
+<!--
+  COPIA IE-COMPATIBLE de AHK_Unified_Master_Referencia.html
+  El control web embebido de AHK (ActiveX Shell.Explorer) usa el motor Trident
+  (Internet Explorer), que NO soporta variables CSS (var(--x)). Por eso esta copia
+  tiene los valores hex resueltos inline. Si editás el HTML original, replicá el
+  cambio acá (o regenerá este archivo). El popup se abre con Win+Shift+?.
+-->
+<style>
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:40px 24px 80px; background:#1b1d22; color:#e8e9ee;
+    font-family:Segoe UI, Calibri, system-ui, sans-serif; line-height:1.5;
+  }
+  .wrap{max-width:980px; margin:0 auto;}
+  h1{font-size:1.9rem; margin:0 0 4px; color:#c47cff;}
+  .subtitle{color:#9aa0ad; margin:0 0 28px; font-size:0.95rem;}
+  .note{
+    background:#2a2330; border:1px solid #4a3a5c; border-radius:10px;
+    padding:14px 18px; margin-bottom:32px; font-size:0.9rem; color:#dcc9f7;
+  }
+  .note b{color:#fff;}
+  h2{
+    font-size:1.15rem; margin:40px 0 14px; color:#5fd0ff;
+    border-bottom:1px solid #33363f; padding-bottom:8px;
+  }
+  h2 .src{
+    font-size:0.75rem; color:#9aa0ad; font-weight:normal; margin-left:8px;
+  }
+  table{width:100%; border-collapse:collapse; background:#23262d; border-radius:10px; overflow:hidden;}
+  th,td{padding:10px 14px; text-align:left; border-bottom:1px solid #33363f; vertical-align:top;}
+  th{background:#1f2127; color:#9aa0ad; font-weight:600; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#272a32;}
+  .key{
+    display:inline-block; background:#2d3140; border:1px solid #444a5a; border-radius:6px;
+    padding:3px 9px; font-family:Consolas, monospace; font-size:0.85rem; color:#fff; white-space:nowrap;
+  }
+  .desc{color:#e8e9ee;}
+  .scope{color:#9aa0ad; font-size:0.82rem;}
+  .pill{
+    display:inline-block; font-size:0.7rem; padding:2px 8px; border-radius:999px;
+    background:#33415a; color:#9fd2ff; margin-left:6px; vertical-align:middle;
+  }
+  .pill.gui{background:#3a3052; color:#c47cff;}
+  .pill.hold{background:#3a4a30; color:#bdf08a;}
+  footer{margin-top:50px; color:#9aa0ad; font-size:0.8rem; text-align:center;}
+  code.inline{background:#2d3140; padding:1px 6px; border-radius:4px; font-size:0.85em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>AHK_Unified_Master.ahk</h1>
+  <p class="subtitle">Referencia completa de hotkeys, hotstrings y funcionalidades — generada 100% a partir del contenido real del archivo unificado.</p>
+
+  <div class="note">
+    <b>Cómo leer esto:</b> cada sección corresponde a un bloque del script (identificado con comentarios <code class="inline">; ====</code> dentro del .ahk, con el nombre del script original del que proviene). El <span class="pill hold">mantener presionado</span> indica una acción que se repite mientras se mantiene el botón del mouse. El <span class="pill gui">ventana</span> indica que abre una interfaz gráfica.
+  </div>
+
+  <h2>Ayuda / esta referencia <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Shift + ?</span></td><td class="desc">Abre/cierra esta ventana de referencia flotante (siempre al frente, no aparece en la barra de tareas). <code class="inline">Esc</code> la cierra.</td></tr>
+  </table>
+
+  <h2>Teclado y navegación <span class="src">arrows-keystrokes.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + W</span></td><td class="desc">Envía la tecla <code class="inline">Flecha Arriba</code>.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + S</span></td><td class="desc">Envía la tecla <code class="inline">Flecha Abajo</code>.</td></tr>
+    <tr><td><span class="key">Ctrl izquierdo + Bloq Mayús</span></td><td class="desc">Envía la tecla <code class="inline">Enter</code> (anula el toggle de Bloq Mayús mientras se mantiene Ctrl izquierdo).</td></tr>
+  </table>
+
+  <h2>Fechas y horas rápidas (hotstrings) <span class="src">autodate.ahk</span></h2>
+  <table>
+    <tr><th>Texto disparador</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">kddd</span></td><td class="desc">Reemplaza el texto por la fecha actual en formato <code class="inline">dd/MM/yy</code>.</td></tr>
+    <tr><td><span class="key">ksss</span></td><td class="desc">Inserta la fecha actual en formato <code class="inline">dd/MM</code>.</td></tr>
+    <tr><td><span class="key">knnn</span></td><td class="desc">Inserta el nombre del día actual completo (ej. "lunes").</td></tr>
+    <tr><td><span class="key">kxxx</span></td><td class="desc">Inserta fecha y hora en formato <code class="inline">yyMMdd_HHmm</code> (útil para nombres de archivo).</td></tr>
+    <tr><td><span class="key">kaaa</span></td><td class="desc">Inserta la fecha actual en formato <code class="inline">yyMMdd</code>.</td></tr>
+    <tr><td><span class="key">kjjd</span></td><td class="desc">Inserta la fecha actual en formato <code class="inline">dd-MM-yy</code>.</td></tr>
+    <tr><td><span class="key">kyyy</span></td><td class="desc">Inserta fecha y hora en formato <code class="inline">dd-MM-yy HH:mm</code>.</td></tr>
+    <tr><td><span class="key">khhh</span></td><td class="desc">Inserta la hora actual en formato <code class="inline">HH:mm</code>.</td></tr>
+  </table>
+  <p class="scope">Todas se activan escribiendo el texto disparador en cualquier campo (modo "raw", sin necesidad de carácter final).</p>
+
+  <h2>Símbolos rápidos <span class="src">backwards-slash.ahk · checkmark.ahk · dashes.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Shift + Numpad /</span></td><td class="desc">Envía el carácter <code class="inline">\</code> (barra invertida).</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + F10</span></td><td class="desc">Envía el símbolo de check <code class="inline">✔</code>.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + F9</span></td><td class="desc">Envía el símbolo de flecha arriba <code class="inline">↑</code>.</td></tr>
+    <tr><td><span class="key">Ctrl + Numpad -</span></td><td class="desc">Envía un guion largo <code class="inline">—</code> (em dash).</td></tr>
+    <tr><td><span class="key">Alt + Numpad -</span></td><td class="desc">Envía un guion medio <code class="inline">–</code> (en dash).</td></tr>
+  </table>
+
+  <h2>Brillo de pantalla <span class="src">brightness.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + ,</span></td><td class="desc">Reduce el brillo de pantalla en 5 puntos (mínimo 10). Muestra el indicador visual nativo de Windows.</td></tr>
+    <tr><td><span class="key">Win + .</span></td><td class="desc">Aumenta el brillo de pantalla en 5 puntos (máximo 100). Muestra el indicador visual nativo de Windows.</td></tr>
+  </table>
+
+  <h2>Calendario emergente <span class="src">calendar.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Numpad 5</span></td><td class="desc">Abre una mini ventana con un calendario. Seleccionás una fecha y presionás "Copiar" (o Enter) para copiarla al portapapeles en formato <code class="inline">dd/MM/yyyy</code>; "Cancelar" (o Esc) cierra sin copiar.</td></tr>
+  </table>
+
+  <h2>Registro de texto / log <span class="src">logger.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + F7</span></td><td class="desc">Escribe un separador de líneas, la fecha/hora actual (<code class="inline">yy/MM/dd HH:mm:ss</code>) y otro separador — útil para marcar entradas en un log de texto.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + L</span></td><td class="desc">Espera hasta 2 segundos una tecla: si presionás <code class="inline">1</code> escribe un separador corto; si presionás <code class="inline">2</code> escribe un separador largo con espacio previo; cualquier otra tecla (o el timeout) cancela sin escribir nada.</td></tr>
+  </table>
+
+  <h2>Mover y redimensionar ventanas con el mouse <span class="src">move_resize.ahk</span> <span class="pill hold">mantener presionado</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Alt + Click izquierdo (mantener)</span></td><td class="desc">Mientras se mantiene presionado, arrastra la ventana bajo el cursor siguiendo el movimiento del mouse.</td></tr>
+    <tr><td><span class="key">Alt + Click derecho (mantener)</span></td><td class="desc">Redimensiona la ventana bajo el cursor: el borde que se mueve (izquierda/derecha/arriba/abajo) depende de en qué cuadrante de la ventana se hizo clic inicialmente.</td></tr>
+  </table>
+
+  <h2>Silenciar audio <span class="src">mute.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Numpad 3</span></td><td class="desc">Si el audio no está muteado, lo mutea (si ya está muteado, no hace nada — no alterna).</td></tr>
+  </table>
+
+  <h2>Multimedia y volumen <span class="src">pauseplay.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + A</span></td><td class="desc">Play / Pausa de reproducción multimedia.</td></tr>
+    <tr><td><span class="key">AltGr + Numpad 5</span></td><td class="desc">Play / Pausa de reproducción multimedia.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Izquierda</span></td><td class="desc">Pista/canción anterior.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Derecha</span></td><td class="desc">Pista/canción siguiente.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 4</span></td><td class="desc">Pista/canción anterior.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 6</span></td><td class="desc">Pista/canción siguiente.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad *</span></td><td class="desc">Mute de volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 3</span></td><td class="desc">Mute de volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad +</span></td><td class="desc">Sube el volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad -</span></td><td class="desc">Baja el volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 8</span></td><td class="desc">Sube el volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 2</span></td><td class="desc">Baja el volumen.</td></tr>
+  </table>
+
+  <h2>Tabulación y selección <span class="src">right_tab.ahk · selectcellcontent.ahk · volume.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl derecho + Numpad 5</span></td><td class="desc">Envía la tecla <code class="inline">Tab</code>.</td></tr>
+    <tr><td><span class="key">Alt + F2</span></td><td class="desc">Envía Backspace seguido de Ctrl+Z (borra un carácter y deshace — pensado para limpiar contenido de una celda y revertir).</td></tr>
+    <tr><td><span class="key">Win + Rueda arriba</span></td><td class="desc">Sube el volumen.</td></tr>
+    <tr><td><span class="key">Win + Rueda abajo</span></td><td class="desc">Baja el volumen.</td></tr>
+  </table>
+
+  <h2>Macro de nombre/firma <span class="src">macro_insta_name.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + X</span></td><td class="desc">Secuencia automatizada: Esc, Alt+Shift+Fin, Ctrl+A (seleccionar todo), Ctrl+V (pegar), Tab, Enter y Shift+A — con pausas calculadas entre cada paso. Pensada para completar un campo de nombre con el contenido del portapapeles.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Shift + X</span></td><td class="desc">Secuencia automatizada alternativa: Alt+Shift+H, Flecha Abajo, Enter — con pausas entre cada paso.</td></tr>
+  </table>
+
+  <h2>Wise Reminder <span class="src">find_wise_reminder.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Z</span></td><td class="desc">Si Wise Reminder está corriendo: lo activa si tiene ventana visible, o si está minimizado en la bandeja del sistema ejecuta una secuencia (Win+B, navegar con flechas, clicks en coordenadas fijas) para abrirlo desde el área de notificaciones. Si <b>no</b> está corriendo, lo inicia desde su ejecutable.</td></tr>
+  </table>
+
+  <h2>Hourglass <span class="src">open_hourglass.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Ctrl + Shift + Z</span></td><td class="desc">Si Hourglass.exe está corriendo, activa su ventana. Si no está corriendo, lo inicia desde su acceso directo del menú Inicio.</td></tr>
+  </table>
+
+  <h2>Cerrar ventanas masivamente <span class="src">kill_all.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Shift + Alt + K</span></td><td class="desc">Recorre todas las ventanas abiertas y cierra las que tienen título y son visibles, <b>excluyendo</b> el escritorio (Progman/WorkerW) y las ventanas de Chrome y Edge (que se preservan deliberadamente).</td></tr>
+  </table>
+
+  <h2>Atajo "Mostrar hora" <span class="src">Show_Time.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + C</span></td><td class="desc">Envía Win+B (activa la bandeja del sistema), luego 5 veces Flecha Derecha y Enter — secuencia para llegar al reloj/hora del sistema desde la bandeja vía teclado.</td></tr>
+  </table>
+
+  <h2>Ciclador de ventanas guardadas <span class="src">Cycler_Windows_v3.ahk</span> <span class="pill gui">ventana (lista)</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + F5</span></td><td class="desc">Guarda la ventana activa en una lista interna (evita duplicados; muestra un aviso si ya estaba guardada).</td></tr>
+    <tr><td><span class="key">Win + F4</span></td><td class="desc">Cicla a la siguiente ventana guardada de la lista y la activa. Si alguna ventana guardada ya se cerró, la descarta automáticamente de la lista.</td></tr>
+    <tr><td><span class="key">Win + Shift + F5</span></td><td class="desc">Quita la ventana activa de la lista guardada (si estaba en ella).</td></tr>
+    <tr><td><span class="key">Win + Shift + F4</span></td><td class="desc">Muestra una ventana flotante con la lista de ventanas guardadas (número, indicador de cuál es la actual, título y handle). Se cierra automáticamente al soltar la tecla Win.</td></tr>
+  </table>
+
+  <h2>Accesos a Google Sheets <span class="src">url_chrome.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + G</span></td><td class="desc">Abre la planilla de Google Sheets configurada en una <b>ventana nueva</b> de Chrome.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Shift + G</span></td><td class="desc">Abre la misma planilla en una <b>pestaña nueva</b> de Chrome.</td></tr>
+  </table>
+
+  <h2>Contador de conversación <span class="src">convCount.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + Win + T</span></td><td class="desc">Incrementa un contador interno y escribe un marcador de texto tipo "Conversation User Input n° X @ fecha/hora ." en el cursor.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Win + R</span></td><td class="desc">Una pulsación: reinicia el contador a 0 (muestra un tooltip de confirmación). Doble pulsación dentro de 700&nbsp;ms: abre una ventana para fijar manualmente el valor del contador, con botones Save / Cancel / Ask (este último copia al portapapeles una pregunta predefinida sobre el número de input actual).</td></tr>
+  </table>
+
+  <h2>Crear archivos rápido <span class="src">createTXT.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Shift + T</span></td><td class="desc">Si el Explorador de Windows está activo, abre una ventana para crear un archivo nuevo en esa carpeta: nombre personalizable, extensión a elegir (.txt, .md, .json, .py, .ahk, .bat, .ps1), opción de usar timestamp como nombre y opción de abrir el archivo tras crearlo.</td></tr>
+    <tr><td><span class="key">Win + Shift + Click central</span> <span class="scope">(solo con el Explorador activo)</span></td><td class="desc">Crea instantáneamente un "New Text Document.txt" en la carpeta abierta del Explorador, sin diálogo, mostrando un tooltip de confirmación.</td></tr>
+  </table>
+
+  <h2>Mover/redimensionar con teclado <span class="src">resize.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + Click central</span></td><td class="desc">Redimensiona la ventana activa a 300×300 px, manteniendo su posición actual.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Click derecho</span></td><td class="desc">Restaura la ventana activa (si estaba minimizada/maximizada) y la centra en la pantalla principal.</td></tr>
+  </table>
+
+  <h2>AHK Manager <span class="src">AHK_Manager.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey / control</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + R</span></td><td class="desc">Muestra/reactiva la ventana del AHK Manager y refresca la lista de scripts en ejecución.</td></tr>
+    <tr><td><span class="key">Icono de refresco</span></td><td class="desc">Refresca manualmente la lista de scripts AutoHotkey detectados (excluye .exe), indicando si cada uno está <span class="pill">Running</span>, <span class="pill">Paused</span> o <span class="pill">Suspended</span>.</td></tr>
+    <tr><td><span class="key">Reload All / Suspend All / Pause All / Kill All</span></td><td class="desc">Envía la acción correspondiente a <b>todos</b> los demás scripts AutoHotkey detectados (no afecta a este script unificado).</td></tr>
+    <tr><td><span class="key">Reload / Suspend / Pause Script / Kill</span></td><td class="desc">Aplica la acción solo al script seleccionado en la lista.</td></tr>
+    <tr><td><span class="key">Select - Edit</span></td><td class="desc">Abre el script seleccionado en Visual Studio Code (si está instalado en la ruta esperada).</td></tr>
+    <tr><td><span class="key">Open Folder</span></td><td class="desc">Abre <code class="inline">C:\autohotkey</code> en el Explorador de Windows.</td></tr>
+    <tr><td><span class="key">GUI Reload</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
+    <tr><td><span class="key">Quit</span></td><td class="desc">Cierra por completo este script unificado (todas las funcionalidades dejan de estar activas).</td></tr>
+    <tr><td><span class="key">Escape</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Cierra por completo este script unificado.</td></tr>
+    <tr><td><span class="key">Alt + Espacio</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
+  </table>
+
+  <h2>Al iniciar el script</h2>
+  <table>
+    <tr><th>Acción</th><th>Qué hace</th></tr>
+    <tr><td>Lanzamiento automático</td><td class="desc">Al arrancar, además de armar todos los hotkeys de arriba y mostrar el AHK Manager, ejecuta <code class="inline">RBTray.exe</code> y abre el acceso directo de <code class="inline">Wise Reminder.lnk</code> (con una pequeña pausa de 200&nbsp;ms antes).</td></tr>
+  </table>
+
+  <footer>Generado a partir de <code class="inline">D:\ahk2\AHK_Unified_Master.ahk</code> — todo el contenido refleja exactamente los hotkeys y la lógica presentes en ese archivo.</footer>
+</div>
+</body>
+</html>
