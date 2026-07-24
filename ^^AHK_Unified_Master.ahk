@@ -445,9 +445,11 @@ OpenSTimerGui() {
     secEdit := stg.Add("Edit", "x+8 yp-5 w70 Number Limit2", timerSeconds)
     stg.Add("Text", "xm", "Auto-envío por inactividad (minutos, 0 = off):")
     inacEdit := stg.Add("Edit", "xm w70 Number Limit4", inactivityMinutes)
+    inacBtn := stg.Add("Button", "x+10 yp-3 w110", "Solo inactividad")
     startBtn := stg.Add("Button", "xm w120 Default", "Iniciar")
     cancelBtn := stg.Add("Button", "x+10 w120", "Cancelar")
     startBtn.OnEvent("Click", (*) => STimerStart(stg, minEdit, secEdit, inacEdit))
+    inacBtn.OnEvent("Click", (*) => STimerSetInactivityOnly(stg, inacEdit))
     cancelBtn.OnEvent("Click", (*) => stg.Destroy())
     stg.OnEvent("Close", (*) => stg.Destroy())
     stg.OnEvent("Escape", (*) => stg.Destroy())
@@ -470,6 +472,15 @@ STimerStart(stg, minEdit, secEdit, inacEdit) {
     } else {
         ToolTip "Sin timer (0:00). Inactividad: " inactivityMinutes " min"
     }
+    SetTimer () => ToolTip(), -1500
+}
+
+STimerSetInactivityOnly(stg, inacEdit) {
+    global inactivityMinutes, inactivityFired
+    inactivityMinutes := inacEdit.Value + 0
+    inactivityFired := false                 ; re-armar el chequeo de inactividad
+    stg.Destroy()
+    ToolTip "Inactividad: " inactivityMinutes " min (sin cambiar el timer manual)"
     SetTimer () => ToolTip(), -1500
 }
 
