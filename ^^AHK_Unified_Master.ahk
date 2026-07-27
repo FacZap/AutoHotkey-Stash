@@ -1,6 +1,7 @@
 ﻿#Requires AutoHotkey v2.0.18+
 #SingleInstance Force
 #UseHook
+#Include UIA.ahk
 
 ; ============================================================================
 ;  AHK_Unified_Master.ahk
@@ -597,6 +598,101 @@ RCtrl & Numpad5::
         WinActivate "ahk_exe Hourglass.exe"
     else
         Run '"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Hourglass\Hourglass.lnk"'
+}
+
+; ============================================================================
+; open-program-GUI.ahk
+;   Requiere open-program-GUI.ini (guarda overrides de rutas por programa).
+; ============================================================================
+OpenProgramIniFile := A_ScriptDir "\open-program-GUI.ini"
+
+OpenProgramPrograms := Map(
+    "Paint", "C:\Windows\System32\mspaint.exe",
+    "Notepad++", "C:\Program Files\Notepad++\notepad++.exe"
+)
+
+for name, defaultPath in OpenProgramPrograms
+    OpenProgramPrograms[name] := IniRead(OpenProgramIniFile, "Paths", name, defaultPath)
+
+^#p::ShowOpenProgramGui()
+
+ShowOpenProgramGui() {
+    global OpenProgramPrograms
+    if WinExist("Open Program ahk_class AutoHotkey") {
+        WinActivate
+        return
+    }
+
+    MyOpenProgramGui := Gui(, "Open Program")
+    MyOpenProgramGui.OnEvent("Close", (*) => MyOpenProgramGui.Destroy())
+    MyOpenProgramGui.SetFont("s10")
+
+    for name, path in OpenProgramPrograms {
+        MyOpenProgramGui.Add("Button", "x10 y+10 w150", name).OnEvent("Click", MakeOpenProgramLaunchHandler(name, MyOpenProgramGui))
+        MyOpenProgramGui.Add("Button", "x+5 yp w80", "Edit path").OnEvent("Click", MakeOpenProgramEditHandler(name))
+    }
+
+    MyOpenProgramGui.Add("Button", "x10 y+15 w235", "Close").OnEvent("Click", (*) => MyOpenProgramGui.Destroy())
+
+    MyOpenProgramGui.Show()
+}
+
+MakeOpenProgramLaunchHandler(name, gui) {
+    return (*) => LaunchOpenProgram(name, gui)
+}
+
+MakeOpenProgramEditHandler(name) {
+    return (*) => EditOpenProgramPath(name)
+}
+
+LaunchOpenProgram(name, gui) {
+    global OpenProgramPrograms
+    path := OpenProgramPrograms[name]
+    if !FileExist(path) {
+        MsgBox("Unable to find " name " at:`n" path)
+        return
+    }
+    try
+        Run(path)
+    catch as err {
+        MsgBox("Failed to launch " name ":`n" err.Message)
+        return
+    }
+    gui.Destroy()
+}
+
+EditOpenProgramPath(name) {
+    global OpenProgramPrograms, OpenProgramIniFile
+    result := InputBox("Path for " name ":", "Edit path", "w400 h130", OpenProgramPrograms[name])
+    if (result.Result = "OK" && result.Value != "") {
+        OpenProgramPrograms[name] := result.Value
+        IniWrite(result.Value, OpenProgramIniFile, "Paths", name)
+    }
+}
+
+; ============================================================================
+; find_google_calendar.ahk
+;   Requiere find_google_calendar.ini (define el navegador: Chrome o Firefox)
+;   y UIA.ahk (incluido arriba) para inspeccionar pestañas vía UI Automation.
+; ============================================================================
+GoogleCalendarIniFile := A_ScriptDir "\find_google_calendar.ini"
+GoogleCalendarBrowserExe := Map("Chrome", "chrome.exe", "Firefox", "firefox.exe")
+    .Get(IniRead(GoogleCalendarIniFile, "Settings", "Browser", "Chrome"), "chrome.exe")
+
++NumpadEnter::
+{
+    global GoogleCalendarBrowserExe
+    for hwnd in WinGetList("ahk_exe " GoogleCalendarBrowserExe) {
+        root := UIA.ElementFromHandle(hwnd)
+        for tab in root.FindElements({Type: "TabItem"}) {
+            if InStr(tab.Name, "Calendario") || InStr(tab.Name, "Google Calendar") {
+                tab.Select()
+                MsgBox(tab.Name)
+                WinActivate("ahk_id " hwnd)
+                return
+            }
+        }
+    }
 }
 
 ; ============================================================================

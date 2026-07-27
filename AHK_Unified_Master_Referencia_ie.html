@@ -238,6 +238,18 @@
     <tr><td><span class="key">Win + Ctrl + Shift + Z</span></td><td class="desc">Si Hourglass.exe está corriendo, activa su ventana. Si no está corriendo, lo inicia desde su acceso directo del menú Inicio.</td></tr>
   </table>
 
+  <h2>Abrir programa <span class="src">open-program-GUI.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Win + P</span></td><td class="desc">Abre una ventana con un botón por cada programa configurado (por defecto Paint y Notepad++). Un clic lo lanza; "Edit path" permite corregir la ruta del ejecutable y la guarda para la próxima vez.</td></tr>
+  </table>
+
+  <h2>Buscar pestaña de Google Calendar <span class="src">find_google_calendar.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Shift + Numpad Enter</span></td><td class="desc">Busca entre las ventanas del navegador configurado (Chrome o Firefox) una pestaña cuyo título contenga "Calendario" o "Google Calendar", la selecciona y activa esa ventana.</td></tr>
+  </table>
+
   <h2>Cerrar ventanas masivamente <span class="src">kill_all.ahk</span></h2>
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>
@@ -306,6 +318,13 @@
   <table>
     <tr><th>Acción</th><th>Qué hace</th></tr>
     <tr><td>Lanzamiento automático</td><td class="desc">Al arrancar, además de armar todos los hotkeys de arriba y mostrar el AHK Manager, ejecuta <code class="inline">RBTray.exe</code> y abre el acceso directo de <code class="inline">Wise Reminder.lnk</code> (con una pequeña pausa de 200&nbsp;ms antes).</td></tr>
+  </table>
+
+  <h2>Archivos .ini requeridos</h2>
+  <table>
+    <tr><th>Archivo</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">open-program-GUI.ini</span></td><td class="desc">Guarda overrides de ruta por programa para la GUI "Abrir programa" (sección [Paths]).</td></tr>
+    <tr><td><span class="key">find_google_calendar.ini</span></td><td class="desc">Define qué navegador usar (Chrome o Firefox) para buscar la pestaña de Google Calendar (sección [Settings]).</td></tr>
   </table>
 
   <div id="noResults">Ningún hotkey coincide con el filtro.</div>
