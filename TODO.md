@@ -8,3 +8,5 @@ To Do / Pendientes:
 [] Listar ventanas por tiempo de uso
     [] Filtrar últimas usadas (mostrar solo las abiertas, interactuadas en la última media hora)
     [] Win + Shift + Z (Traymond) a las ventanas inactivas
+[X] menu GUI/popup (tal vez incorporado en Manager? o incorporado en la GUI de referencia de hotkeys?) para desactivar hotkeys particulares
+  (por ejemplo, quiero desactivar el manejo de la ventana con Alt + Click Izq/Der, pero que todas las otras funcionalidades del script maestro sigan)

@@ -1,0 +1,155 @@
+# Menú para activar/desactivar hotkeys del master
+
+## Context
+
+`^^AHK_Unified_Master.ahk` corre 62 hotkeys + 8 hotstrings en un solo proceso. Hoy es todo o nada: si molesta el manejo de ventanas con `Alt + Click Izq/Der` ([líneas 266 y 283](^^AHK_Unified_Master.ahk:266)), la única salida es suspender o matar el script entero y perder las otras 68 funcionalidades. No existe ningún `Hotkey()` dinámico, ningún `Suspend`, ni persistencia de configuración: todos los bindings son definiciones estáticas `::`.
+
+El objetivo es un menú con checkboxes, abierto desde la GUI del AHK Manager, que permita apagar/prender hotkeys individuales o bloques enteros en caliente, dejando el resto del master intacto. Es el ítem de [TODO.md:11](TODO.md:11).
+
+Decisiones tomadas:
+- **Dos niveles**: checkbox por sección (apaga el bloque completo) + checkbox por hotkey individual.
+- **Acceso**: solo un botón nuevo en la GUI del Manager (`Ctrl+Alt+R`). Sin hotkey nuevo, sin menú de tray.
+- **Sin persistencia**: el estado vive en memoria; un Reload devuelve todo a activado. No se crea ningún `.ini`.
+
+---
+
+## Mecanismo de apagado
+
+Tres tipos de entrada, según lo que se puede apagar en AHK v2:
+
+| Tipo | Cómo se apaga | Cuántas |
+|---|---|---|
+| `hotkey` | `Hotkey(hk, , "Off")` / `"On"` | ~60 |
+| `hotstring` | `Hotstring(":R*?:kddd", , "Off")` | 8 |
+| `flag` | Variable de guarda dentro de un `#HotIf` existente | 1 |
+
+`Hotkey()` apunta a la variante que corresponde al contexto `HotIf` **actual del thread**. Todas las entradas de tipo `hotkey` están definidas sin contexto, así que hay que llamar `HotIf()` sin argumentos antes del loop para asegurar el contexto global. Apagar con `Hotkey(..., "Off")` es lo correcto acá (no un guard clause dentro del handler) porque devuelve la tecla al comportamiento nativo: con `Alt & LButton` apagado, `Alt + Click Izq` vuelve a hacer lo que hace Windows, en vez de ser tragado por un handler que no hace nada.
+
+**Los `#HotIf` no se toman como entradas propias.** El master tiene 4 bloques `#HotIf` ([248](^^AHK_Unified_Master.ahk:248), [424](^^AHK_Unified_Master.ahk:424), [969](^^AHK_Unified_Master.ahk:969), [1247](^^AHK_Unified_Master.ahk:1247)) y sus hotkeys no son alcanzables por `Hotkey()`, porque la directiva `#HotIf <expr>` genera una función anónima interna que no se puede reproducir con `HotIf()`. Tratamiento caso por caso:
+
+- `*e` ([249](^^AHK_Unified_Master.ahk:249)) y `*i` ([425](^^AHK_Unified_Master.ahk:425)) son la segunda tecla de un chord: alcanza con apagar la tecla de entrada (`^!5` y `#!u`), que sí son hotkeys planas. No van al árbol.
+- `~Escape` / `~!Space` ([1248-1249](^^AHK_Unified_Master.ahk:1248)) son internas del Manager. Se excluyen del árbol.
+- `#+MButton` ([970](^^AHK_Unified_Master.ahk:970)) no tiene tecla de entrada plana, así que es la única entrada `flag`. Se edita una línea:
+
+```ahk
+#HotIf HKEnabled("createTXT.instantTxt") && IsExplorerActive()
+```
+
+`^!r` ([1195](^^AHK_Unified_Master.ahk:1195)) se marca **protegida**: si se pudiera apagar, no habría forma de reabrir el Manager para volver a prender nada.
+
+---
+
+## Cambios
+
+### 1. Nueva sección: registro + estado + aplicación
+
+Insertar una sección nueva con el banner `; ====` habitual, **antes** de la sección `AHK_Manager.ahk` ([línea 1192](^^AHK_Unified_Master.ahk:1192)). Las definiciones de funciones se resuelven en cualquier orden en v2, así que el botón del Manager puede llamarlas sin importar la posición.
+
+Registro declarativo, un objeto por sección del master (mismo idiom de array-de-descriptores que usa [_Check_Starters.ahk:13-103](_Check_Starters.ahk:13)):
+
+```ahk
+global gHKSections := [
+    { id: "move_resize", title: "Mover / redimensionar ventanas", src: "move_resize.ahk",
+      items: [
+        { id: "move",   type: "hotkey", hk: "Alt & LButton", label: "Alt + Click Izq (mantener)",
+          desc: "Arrastra la ventana bajo el cursor" },
+        { id: "resize", type: "hotkey", hk: "Alt & RButton", label: "Alt + Click Der (mantener)",
+          desc: "Redimensiona la ventana bajo el cursor" } ] },
+    ...
+]
+```
+
+Campos por ítem: `id` (único dentro de la sección), `type`, `hk` (string exacto de la definición; vacío para `flag`), `label` (nombre legible), `desc` (una línea), `protected` (opcional).
+
+Las 33 secciones y sus descripciones legibles ya existen en [AHK_Unified_Master_Referencia_ie.html](AHK_Unified_Master_Referencia_ie.html) (un `<h2>` + tabla `Hotkey | Qué hace` por script) — usar ese archivo como fuente para redactar `title`, `label` y `desc`, así el menú y la referencia dicen lo mismo.
+
+Estado y helpers:
+
+```ahk
+global gHKState := Map()                       ; "seccion.item" -> false cuando está apagado
+
+HKEnabled(key) => !gHKState.Has(key) || gHKState[key]   ; default: todo activado
+
+HKApply(entry, key, enabled) {                 ; devuelve "" si ok, o el mensaje de error
+    switch entry.type {
+        case "hotkey":    HotIf()  ; contexto global explícito
+                          try Hotkey(entry.hk, , enabled ? "On" : "Off")
+                          catch as e
+                              return e.Message
+        case "hotstring": try Hotstring(entry.hk, , enabled ? "On" : "Off")
+                          catch as e
+                              return e.Message
+        case "flag":      ; nada: HKEnabled() ya lo lee desde el #HotIf
+    }
+    gHKState[key] := enabled
+    return ""
+}
+```
+
+**Validación de strings.** Las ~68 strings de hotkey se escriben a mano y un typo apagaría nada en silencio. Al construir la GUI por primera vez, correr cada entrada por un `HKApply(entry, key, true)` (no-op funcional: prende algo ya prendido) y guardar las que tiran excepción. Esas entradas se muestran en el árbol con sufijo ` [!]` y su checkbox deshabilitado — diagnóstico visible en vez de un botón muerto.
+
+### 2. Nueva sección: la GUI del menú
+
+`ShowHotkeyTogglesGui()`, con el patrón singleton + `Hide()` de [ShowReferenceGui()](^^AHK_Unified_Master.ahk:1152) (construir una vez, toggle de visibilidad con `DllCall("IsWindowVisible")`, `Close`/`Escape` → `Hide()` en lugar de `Destroy()`).
+
+Control central: **TreeView con checkboxes** — es el control que da los dos niveles de forma nativa (padre = sección, hijo = hotkey, con expandir/colapsar):
+
+```ahk
+tv := tgGui.Add("TreeView", "x10 y40 w520 h420 Checked Background313131 cFFFFFF")
+secNode := tv.Add(sec.title "   (" sec.src ")", 0, "Check Bold")
+itemNode := tv.Add(item.label "  —  " item.desc, secNode, "Check")
+```
+
+Estilo: copiar la paleta del Manager ([1201-1244](^^AHK_Unified_Master.ahk:1201)) — `BackColor := "313131"`, título en `cc47cff` s13 Bold Calibri, textos `cffffff` s11 Calibri, TreeView s9.5.
+
+Dos Maps para traducir de nodo del TreeView a entrada del registro:
+
+```ahk
+gTvNodes := Map()      ; tvItemId -> {kind:"section"|"item", sec:…, entry:…, key:"…"}
+gTvChildren := Map()   ; tvItemId de sección -> [tvItemIds de sus hijos]
+```
+
+`tv.OnEvent("ItemCheck", TogglesItemCheck)` con callback `(tv, item, checked)`:
+
+- **Nodo sección** → cascada: aplicar `checked` a todos sus hijos (`HKApply` + `tv.Modify(child, checked ? "Check" : "-Check")`).
+- **Nodo ítem** → `HKApply`; después recalcular el padre: queda tildado si **algún** hijo está activo. (El TreeView de AHK no tiene tri-state, así que "parcialmente activo" se representa con el padre tildado.)
+- **Ítem protegido o inválido** desmarcado → volver a tildarlo con `tv.Modify(item, "Check")` y mostrar un `ToolTip` breve explicando por qué.
+
+`tv.Modify()` puede volver a disparar `ItemCheck`, así que el callback necesita un guard de reentrada (`static busy := false`, salir temprano si ya está corriendo) — si no, la cascada de una sección con 8 hijos se convierte en una tormenta de eventos.
+
+Botones abajo, con el helper de estilo del Manager: `Todo On`, `Todo Off`, `Expandir todo`, `Colapsar todo`, `Cerrar`.
+
+### 3. Botón en la GUI del Manager
+
+En la Row 4 ([línea 1240](^^AHK_Unified_Master.ahk:1240)), reacomodar para que entren dos botones de 170 en el ancho existente de 375 (10 + 170 + 5 + 170 = 355), sin tocar `MyGui.Show("w375 h365")`:
+
+```ahk
+AddButton("x10", "y+5", "w170", "Macro Recorder", (*) => OpenMacroRecorder())
+AddButton("x+5", "yp",  "w170", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
+```
+
+### 4. Fuera de alcance
+
+- **`AHK_Manager.ahk` no se toca.** Su GUI está duplicada dentro del master ([1193-1385](^^AHK_Unified_Master.ahk:1193)); la copia standalone corre en su propio proceso y no es dueña de los hotkeys del master, así que un botón "Hotkeys…" ahí no tendría nada que apagar.
+- **La GUI de referencia HTML no se toca.** Es un ActiveX con motor IE ([1175](^^AHK_Unified_Master.ahk:1175)); hacerla interactiva requeriría un puente IE↔AHK frágil. Los ítems de búsqueda de [TODO.md:3-7](TODO.md:3) quedan pendientes.
+- **Nota de mantenimiento a dejar en el comentario de la sección:** el registro repite hotkeys y descripciones que ya están en el HTML de referencia, o sea una tercera fuente de verdad. El registro queda con forma (`title`/`src`/`label`/`desc`) para poder generar la referencia desde él más adelante y colapsar las fuentes a una — eso resolvería [TODO.md:7](TODO.md:7), pero no es parte de este cambio.
+
+---
+
+## Verificación
+
+Terminar la instancia corriendo del master y relanzar:
+
+```bash
+AutoHotkey.exe ".\^^AHK_Unified_Master.ahk"
+```
+
+1. `Ctrl+Alt+R` → Manager → **Hotkeys…** abre el árbol; revisar que no aparezca ningún ` [!]` (cada uno es un string del registro que no matchea la definición real).
+2. Expandir *Mover / redimensionar ventanas*, destildar solo **Alt + Click Der**: `Alt` + arrastrar con botón derecho ya no redimensiona (aparece el comportamiento nativo de Windows), y `Alt` + arrastrar con botón izquierdo sigue moviendo la ventana. Volver a tildar y confirmar que el resize funciona otra vez.
+3. Destildar el nodo **padre** de la sección: se destildan los dos hijos y ambos gestos quedan nativos. Volver a tildar el padre y confirmar la cascada inversa.
+4. Destildar la sección de hotstrings (`autodate`): tipear `kddd` en el Notepad no expande la fecha. Reactivar y confirmar que vuelve a expandir.
+5. Ruta `flag`: destildar el ítem de creación instantánea de `.txt`; en una ventana del Explorador, `Win+Shift+Click medio` no crea el archivo. Reactivar y confirmar que sí.
+6. Destildar el ítem de `Ctrl+Alt+R`: tiene que volver a tildarse solo con un tooltip, y el Manager tiene que seguir abriéndose con `Ctrl+Alt+R`.
+7. `Todo Off` → probar 3-4 hotkeys de secciones distintas (`Win+,` de brillo, `Ctrl+Alt+A` de play/pause, `Win+Numpad5` del calendario): ninguna responde. `Todo On` → las tres vuelven.
+8. `Esc` cierra el menú; reabrirlo con el botón muestra el mismo estado (singleton, no se reconstruye).
+9. Botón `GUI Reload` del Manager: todo vuelve a activado — comportamiento esperado por ser estado de sesión.

@@ -966,7 +966,9 @@ PutAskTextOnClipboardAndClose(g) {
     ShowCreateFileGui(path)
 }
 
-#HotIf IsExplorerActive()
+; HKEnabled() permite apagarlo desde el menú de hotkeys: este #HotIf no es
+; alcanzable por Hotkey(), así que se guarda con una flag (tipo "flag").
+#HotIf HKEnabled("create_txt.instantTxt") && IsExplorerActive()
 #+MButton::
 {
     path := GetActiveExplorerPath()
@@ -1190,6 +1192,383 @@ ReferenceGuiResize(thisGui, minMax, w, h) {
 }
 
 ; ============================================================================
+; Activar / desactivar hotkeys  (botón "Hotkeys…" en la GUI del Manager)
+; ============================================================================
+;   Permite apagar hotkeys individuales o secciones enteras sin suspender ni
+;   matar el script. Apagar usa Hotkey()/Hotstring() con "Off", que devuelve la
+;   tecla a su comportamiento nativo de Windows, en lugar de dejarla atrapada
+;   por un handler que no hace nada.
+;
+;   El estado vive solo en memoria: un Reload devuelve todo a activado.
+;
+;   Tipos de ítem:
+;     "hotkey"    -> Hotkey(hk, , "On"/"Off")
+;     "hotstring" -> Hotstring(hk, , "On"/"Off")
+;     "flag"      -> lo lee HKEnabled() desde un #HotIf ya existente
+;
+;   Los hotkeys definidos dentro de un #HotIf no son alcanzables por Hotkey(),
+;   porque la directiva genera una función anónima que no se puede reproducir
+;   con HotIf(). Por eso: los chords (*e, *i) se apagan desde su tecla de
+;   entrada (Ctrl+Alt+5 y Win+Alt+U), ~Escape/~!Space del Manager quedan fuera
+;   de la lista, y #+MButton (createTXT instantáneo) usa el tipo "flag".
+;
+;   MANTENIMIENTO: gHKSections repite hotkeys y descripciones que también viven
+;   en AHK_Unified_Master_Referencia_ie.html, o sea que hay tres fuentes de
+;   verdad (código, HTML, este registro). Los campos title/src/label/desc están
+;   pensados para poder generar esa referencia desde acá más adelante y dejar
+;   una sola fuente.
+; ============================================================================
+
+global gHKState := Map()        ; "seccion.item" -> false cuando está apagado
+global gHKGui := ""             ; ventana del menú (singleton)
+global gHKTree := ""            ; el TreeView con los checkboxes
+global gHKNodes := Map()        ; itemId del TreeView -> descriptor del nodo
+global gHKChildren := Map()     ; itemId de sección   -> [itemIds de sus hijos]
+global gHKBusy := false         ; guarda de reentrada para el evento ItemCheck
+
+global gHKSections := [
+    { id: "ayuda", title: "Ayuda / esta referencia", src: "", items: [
+        { id: "ref", type: "hotkey", hk: "#+SC00C", label: "Win + Shift + ?",
+          desc: "Abre/cierra la ventana de referencia de comandos" } ] },
+
+    { id: "arrows", title: "Teclado y navegación", src: "arrows-keystrokes.ahk", items: [
+        { id: "up",    type: "hotkey", hk: "^!W",        label: "Ctrl + Alt + W",        desc: "Envía Flecha Arriba" },
+        { id: "down",  type: "hotkey", hk: "^!S",        label: "Ctrl + Alt + S",        desc: "Envía Flecha Abajo" },
+        { id: "enter", type: "hotkey", hk: "<^CapsLock", label: "Ctrl izq + Bloq Mayús", desc: "Envía Enter (anula el toggle de Mayús)" } ] },
+
+    { id: "autodate", title: "Fechas y horas rápidas (hotstrings)", src: "autodate.ahk", items: [
+        { id: "kddd", type: "hotstring", hk: ":R*?:kddd", label: "kddd", desc: "Fecha dd/MM/yy" },
+        { id: "ksss", type: "hotstring", hk: ":R*?:ksss", label: "ksss", desc: "Fecha dd/MM" },
+        { id: "knnn", type: "hotstring", hk: ":R*?:knnn", label: "knnn", desc: "Nombre del día actual" },
+        { id: "kxxx", type: "hotstring", hk: ":R*?:kxxx", label: "kxxx", desc: "Fecha y hora yyMMdd_HHmm" },
+        { id: "kaaa", type: "hotstring", hk: ":R*?:kaaa", label: "kaaa", desc: "Fecha yyMMdd" },
+        { id: "kjjd", type: "hotstring", hk: ":R*?:kjjd", label: "kjjd", desc: "Fecha dd-MM-yy" },
+        { id: "kyyy", type: "hotstring", hk: ":R*?:kyyy", label: "kyyy", desc: "Fecha y hora dd-MM-yy HH:mm" },
+        { id: "khhh", type: "hotstring", hk: ":R*?:khhh", label: "khhh", desc: "Hora HH:mm" } ] },
+
+    { id: "chord", title: "Texto rápido (chord)", src: "", items: [
+        { id: "endflag", type: "hotkey", hk: "^!5", label: "Ctrl + Alt + 5, luego E",
+          desc: "Escribe el texto literal %%end flag (la E debe llegar en menos de 2 s)" } ] },
+
+    { id: "simbolos", title: "Símbolos rápidos", src: "backwards-slash.ahk · checkmark.ahk · dashes.ahk", items: [
+        { id: "slash",   type: "hotkey", hk: "+NumpadDiv", label: "Shift + Numpad /", desc: "Envía la barra invertida \" },
+        { id: "check",   type: "hotkey", hk: "!^F10",      label: "Ctrl + Alt + F10", desc: "Envía el símbolo de check ✔" },
+        { id: "arrowup", type: "hotkey", hk: "!^F9",       label: "Ctrl + Alt + F9",  desc: "Envía la flecha arriba ↑" },
+        { id: "emdash",  type: "hotkey", hk: "^NumpadSub", label: "Ctrl + Numpad -",  desc: "Envía un guion largo — (em dash)" },
+        { id: "endash",  type: "hotkey", hk: "!NumpadSub", label: "Alt + Numpad -",   desc: "Envía un guion medio – (en dash)" } ] },
+
+    { id: "brightness", title: "Brillo de pantalla", src: "brightness.ahk", items: [
+        { id: "down", type: "hotkey", hk: "#,", label: "Win + ,", desc: "Baja el brillo 5 puntos (mínimo 10)" },
+        { id: "up",   type: "hotkey", hk: "#.", label: "Win + .", desc: "Sube el brillo 5 puntos (máximo 100)" } ] },
+
+    { id: "calendar", title: "Calendario emergente", src: "calendar.ahk", items: [
+        { id: "show", type: "hotkey", hk: "#Numpad5", label: "Win + Numpad 5",
+          desc: "Abre un calendario para copiar una fecha al portapapeles" } ] },
+
+    { id: "logger", title: "Registro de texto / log", src: "logger.ahk", items: [
+        { id: "stamp", type: "hotkey", hk: "!^F7", label: "Ctrl + Alt + F7",
+          desc: "Escribe separador + fecha/hora + separador" },
+        { id: "sep",   type: "hotkey", hk: "!^l",  label: "Ctrl + Alt + L",
+          desc: "Espera 1 o 2 y escribe un separador corto o largo" } ] },
+
+    { id: "move_resize", title: "Mover y redimensionar ventanas con el mouse", src: "move_resize.ahk", items: [
+        { id: "move",   type: "hotkey", hk: "Alt & LButton", label: "Alt + Click Izq (mantener)",
+          desc: "Arrastra la ventana que está bajo el cursor" },
+        { id: "resize", type: "hotkey", hk: "Alt & RButton", label: "Alt + Click Der (mantener)",
+          desc: "Redimensiona la ventana bajo el cursor según el cuadrante" } ] },
+
+    { id: "mute", title: "Silenciar audio", src: "mute.ahk", items: [
+        { id: "mute", type: "hotkey", hk: "#Numpad3", label: "Win + Numpad 3",
+          desc: "Mutea el audio si no estaba muteado (no alterna)" } ] },
+
+    { id: "idle", title: "Ocultar al escritorio por inactividad", src: "idle_edit_v2.ahk", items: [
+        { id: "config", type: "hotkey", hk: "#NumpadMult", label: "Win + Numpad *",
+          desc: "Fija los minutos de inactividad tras los que se oculta todo (0 = off)" } ] },
+
+    { id: "stimer", title: "Timer → Win+Alt+S", src: "!_STARTUP_merged.ahk", items: [
+        { id: "open", type: "hotkey", hk: "#!u", label: "Win + Alt + U, luego I",
+          desc: "Abre la ventana del temporizador (la I debe llegar en menos de 1 s)" } ] },
+
+    { id: "media", title: "Multimedia y volumen", src: "pauseplay.ahk", items: [
+        { id: "playpause",  type: "hotkey", hk: "^!A",             label: "Ctrl + Alt + A",        desc: "Play / Pausa" },
+        { id: "playpause2", type: "hotkey", hk: "RAlt & Numpad5",  label: "AltGr + Numpad 5",      desc: "Play / Pausa" },
+        { id: "prev",       type: "hotkey", hk: "^!Left",          label: "Ctrl + Alt + Izquierda", desc: "Pista anterior" },
+        { id: "next",       type: "hotkey", hk: "^!Right",         label: "Ctrl + Alt + Derecha",  desc: "Pista siguiente" },
+        { id: "prev2",      type: "hotkey", hk: "^!Numpad4",       label: "Ctrl + Alt + Numpad 4", desc: "Pista anterior" },
+        { id: "next2",      type: "hotkey", hk: "^!Numpad6",       label: "Ctrl + Alt + Numpad 6", desc: "Pista siguiente" },
+        { id: "mute",       type: "hotkey", hk: "^!Numpad3",       label: "Ctrl + Alt + Numpad 3", desc: "Mute de volumen" },
+        { id: "volup",      type: "hotkey", hk: "^!NumpadAdd",     label: "Ctrl + Alt + Numpad +", desc: "Sube el volumen" },
+        { id: "voldown",    type: "hotkey", hk: "^!NumpadSub",     label: "Ctrl + Alt + Numpad -", desc: "Baja el volumen" },
+        { id: "volup2",     type: "hotkey", hk: "^!Numpad8",       label: "Ctrl + Alt + Numpad 8", desc: "Sube el volumen" },
+        { id: "voldown2",   type: "hotkey", hk: "^!Numpad2",       label: "Ctrl + Alt + Numpad 2", desc: "Baja el volumen" } ] },
+
+    { id: "tabsel", title: "Tabulación y selección", src: "right_tab.ahk · selectcellcontent.ahk · volume.ahk", items: [
+        { id: "tab",     type: "hotkey", hk: "RCtrl & Numpad5", label: "Ctrl der + Numpad 5", desc: "Envía Tab" },
+        { id: "cell",    type: "hotkey", hk: "!F2",             label: "Alt + F2",            desc: "Backspace + Ctrl+Z (limpia una celda y deshace)" },
+        { id: "volup",   type: "hotkey", hk: "#WheelUp",        label: "Win + Rueda arriba",  desc: "Sube el volumen" },
+        { id: "voldown", type: "hotkey", hk: "#WheelDown",      label: "Win + Rueda abajo",   desc: "Baja el volumen" } ] },
+
+    { id: "macro_name", title: "Macro de nombre/firma", src: "macro_insta_name.ahk", items: [
+        { id: "main", type: "hotkey", hk: "^!x",  label: "Ctrl + Alt + X",
+          desc: "Secuencia Esc, Alt+Shift+Fin, Ctrl+A, Ctrl+V, Tab, Enter, Shift+A" },
+        { id: "alt",  type: "hotkey", hk: "^!+x", label: "Ctrl + Alt + Shift + X",
+          desc: "Secuencia Alt+Shift+H, Flecha Abajo, Enter" } ] },
+
+    { id: "wise", title: "Wise Reminder", src: "find_wise_reminder.ahk", items: [
+        { id: "find", type: "hotkey", hk: "#z", label: "Win + Z",
+          desc: "Activa Wise Reminder (lo rescata de la bandeja o lo lanza)" } ] },
+
+    { id: "hourglass", title: "Hourglass", src: "open_hourglass.ahk", items: [
+        { id: "open", type: "hotkey", hk: "#^+z", label: "Win + Ctrl + Shift + Z",
+          desc: "Activa Hourglass, o lo lanza si no está corriendo" } ] },
+
+    { id: "open_program", title: "Abrir programa", src: "open-program-GUI.ahk", items: [
+        { id: "gui", type: "hotkey", hk: "^#p", label: "Ctrl + Win + P",
+          desc: "Abre la ventana con un botón por programa configurado" } ] },
+
+    { id: "gcal", title: "Buscar pestaña de Google Calendar", src: "find_google_calendar.ahk", items: [
+        { id: "find", type: "hotkey", hk: "+NumpadEnter", label: "Shift + Numpad Enter",
+          desc: "Busca y activa la pestaña de Google Calendar en el navegador" } ] },
+
+    { id: "kill_all", title: "Cerrar ventanas masivamente", src: "kill_all.ahk", items: [
+        { id: "kill", type: "hotkey", hk: "^+!k", label: "Ctrl + Shift + Alt + K",
+          desc: "Cierra todas las ventanas visibles excepto Chrome/Edge y el escritorio" } ] },
+
+    { id: "show_time", title: "Atajo Mostrar hora", src: "Show_Time.ahk", items: [
+        { id: "clock", type: "hotkey", hk: "#c", label: "Win + C",
+          desc: "Win+B, 5 veces Derecha y Enter para llegar al reloj" } ] },
+
+    { id: "cycler", title: "Ciclador de ventanas guardadas", src: "Cycler_Windows_v3.ahk", items: [
+        { id: "add",    type: "hotkey", hk: "#F5",  label: "Win + F5",         desc: "Guarda la ventana activa en la lista" },
+        { id: "cycle",  type: "hotkey", hk: "#F4",  label: "Win + F4",         desc: "Cicla a la siguiente ventana guardada" },
+        { id: "remove", type: "hotkey", hk: "#+F5", label: "Win + Shift + F5", desc: "Quita la ventana activa de la lista" },
+        { id: "list",   type: "hotkey", hk: "#+F4", label: "Win + Shift + F4", desc: "Muestra la lista flotante de ventanas guardadas" } ] },
+
+    { id: "sheets", title: "Accesos a Google Sheets", src: "url_chrome.ahk", items: [
+        { id: "window", type: "hotkey", hk: "^!g",  label: "Ctrl + Alt + G",         desc: "Abre la planilla en una ventana nueva de Chrome" },
+        { id: "tab",    type: "hotkey", hk: "^!+g", label: "Ctrl + Alt + Shift + G", desc: "Abre la planilla en una pestaña nueva de Chrome" } ] },
+
+    { id: "conv_count", title: "Contador de conversación", src: "convCount.ahk", items: [
+        { id: "add",   type: "hotkey", hk: "^!#t", label: "Ctrl + Alt + Win + T",
+          desc: "Incrementa el contador y escribe el marcador de texto" },
+        { id: "reset", type: "hotkey", hk: "^!#r", label: "Ctrl + Alt + Win + R",
+          desc: "Reinicia el contador; doble pulsación abre la ventana para fijarlo" } ] },
+
+    { id: "create_txt", title: "Crear archivos rápido", src: "createTXT.ahk", items: [
+        { id: "gui",        type: "hotkey", hk: "#+t", label: "Win + Shift + T",
+          desc: "Abre la ventana para crear un archivo en la carpeta del Explorador" },
+        { id: "instantTxt", type: "flag",   hk: "",    label: "Win + Shift + Click central",
+          desc: "Crea al instante New Text Document.txt (solo con el Explorador activo)" } ] },
+
+    { id: "resize_kb", title: "Mover/redimensionar con teclado", src: "resize.ahk", items: [
+        { id: "small",  type: "hotkey", hk: "^!MButton", label: "Ctrl + Alt + Click central",
+          desc: "Redimensiona la ventana activa a 300x300 px" },
+        { id: "center", type: "hotkey", hk: "^!RButton", label: "Ctrl + Alt + Click derecho",
+          desc: "Restaura y centra la ventana activa" } ] },
+
+    { id: "manager", title: "AHK Manager", src: "AHK_Manager.ahk", items: [
+        { id: "show", type: "hotkey", hk: "^!r", label: "Ctrl + Alt + R", protected: true,
+          desc: "Muestra la ventana del Manager (no se puede apagar)" } ] },
+
+    { id: "pruebas", title: "Pruebas manuales", src: "", items: [
+        { id: "youtube", type: "hotkey", hk: "#ñ", label: "Win + Ñ", desc: "Abre youtube.com" } ] }
+]
+
+; Estado de una entrada. Todo arranca activado, así que la ausencia de clave
+; equivale a "prendido".
+HKEnabled(key) {
+    global gHKState
+    if !IsSet(gHKState)
+        return true
+    return !gHKState.Has(key) || gHKState[key]
+}
+
+; Aplica el estado a una entrada. Devuelve "" si salió bien, o el mensaje de
+; error (típicamente porque el string de gHKSections no matchea la definición
+; real del hotkey).
+HKApply(entry, key, enabled) {
+    global gHKState
+    switch entry.type {
+        case "hotkey":
+            HotIf()   ; contexto global explícito: apunta a la variante sin #HotIf
+            try
+                Hotkey(entry.hk, , enabled ? "On" : "Off")
+            catch as err
+                return err.Message
+        case "hotstring":
+            try
+                Hotstring(entry.hk, , enabled ? "On" : "Off")
+            catch as err
+                return err.Message
+        case "flag":
+            ; no hay nada que registrar: HKEnabled() lo lee desde el #HotIf
+    }
+    gHKState[key] := enabled
+    return ""
+}
+
+HKToggleTip(msg) {
+    ToolTip(msg)
+    SetTimer(() => ToolTip(), -2500)
+}
+
+HKAddButton(g, opts, text, cb) {
+    btn := g.AddButton(opts, text)
+    btn.OnEvent("Click", cb)
+    btn.SetFont("s10", "Calibri")
+    return btn
+}
+
+ShowHotkeyTogglesGui() {
+    global gHKGui, gHKTree, gHKNodes, gHKChildren, gHKSections
+
+    ; Toggle: si ya está visible, se cierra. La ventana se construye una sola vez.
+    if (gHKGui != "") {
+        if DllCall("IsWindowVisible", "ptr", gHKGui.Hwnd)
+            gHKGui.Hide()
+        else
+            gHKGui.Show()
+        return
+    }
+
+    gHKNodes := Map()
+    gHKChildren := Map()
+
+    gHKGui := Gui("+AlwaysOnTop", "Hotkeys del master — activar / desactivar")
+    gHKGui.BackColor := "313131"
+    gHKGui.Add("Text", "x10 y8 w720 h24 cc47cff", "Hotkeys del script maestro:").SetFont("s13 Bold", "Calibri")
+    gHKGui.Add("Text", "x10 y+2 w720 h18 cffffff",
+        "Destildá un hotkey para devolverle su comportamiento nativo de Windows. "
+        "Destildar una sección apaga el bloque completo. El estado se pierde al recargar el script.")
+        .SetFont("s9", "Calibri")
+
+    gHKTree := gHKGui.Add("TreeView", "x10 y+6 w720 h460 Checked Background313131 cFFFFFF")
+    gHKTree.SetFont("s9.5", "Calibri")
+
+    ; Al construir, cada entrada se reaplica con su estado actual. Es un no-op
+    ; funcional, pero valida que el string de hotkey exista de verdad: las que
+    ; fallan se marcan con [!] en lugar de quedar como un checkbox muerto.
+    badCount := 0
+    for sec in gHKSections {
+        secNode := gHKTree.Add(sec.title (sec.src = "" ? "" : "   (" sec.src ")"), 0, "Check")
+        gHKNodes[secNode] := { kind: "section", sec: sec }
+        gHKChildren[secNode] := []
+
+        for entry in sec.items {
+            key := sec.id "." entry.id
+            err := HKApply(entry, key, HKEnabled(key))
+            isBad := (err != "")
+            label := entry.label "  —  " entry.desc
+            if isBad {
+                label .= "   [!] " err
+                badCount++
+            }
+            itemNode := gHKTree.Add(label, secNode, HKEnabled(key) ? "Check" : "")
+            gHKNodes[itemNode] := { kind: "item", key: key, entry: entry, bad: isBad,
+                                    protected: entry.HasOwnProp("protected") && entry.protected }
+            gHKChildren[secNode].Push(itemNode)
+        }
+        HKSyncSection(secNode)
+    }
+
+    gHKTree.OnEvent("ItemCheck", HKTreeItemCheck)
+
+    HKAddButton(gHKGui, "x10 y+8 w140", "Todo On",       (*) => HKSetAll(true))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Todo Off",      (*) => HKSetAll(false))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Expandir todo", (*) => HKExpandAll(true))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Colapsar todo", (*) => HKExpandAll(false))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Cerrar",        (*) => gHKGui.Hide())
+
+    if (badCount > 0)
+        gHKGui.Add("Text", "x10 y+6 w720 cffb86c",
+            badCount " entrada(s) marcada(s) con [!]: el string de gHKSections no matchea "
+            "la definición real del hotkey y no se puede apagar.").SetFont("s9", "Calibri")
+
+    gHKGui.OnEvent("Close",  (*) => gHKGui.Hide())
+    gHKGui.OnEvent("Escape", (*) => gHKGui.Hide())
+    gHKGui.Show()
+}
+
+; El TreeView de AHK no tiene checkbox tri-estado, así que la sección queda
+; tildada mientras al menos uno de sus hijos esté activo.
+HKSyncSection(secNode) {
+    global gHKTree, gHKNodes, gHKChildren
+    if !gHKChildren.Has(secNode)
+        return
+    anyOn := false
+    for child in gHKChildren[secNode] {
+        cn := gHKNodes[child]
+        if (cn.bad || HKEnabled(cn.key)) {
+            anyOn := true
+            break
+        }
+    }
+    gHKTree.Modify(secNode, anyOn ? "Check" : "-Check")
+}
+
+; Aplica el estado de un hijo, respetando protegidos e inválidos. Devuelve el
+; estado que quedó realmente.
+HKApplyChild(child, enabled) {
+    global gHKTree, gHKNodes
+    cn := gHKNodes[child]
+    if (cn.bad || (cn.protected && !enabled)) {
+        gHKTree.Modify(child, "Check")
+        return true
+    }
+    HKApply(cn.entry, cn.key, enabled)
+    gHKTree.Modify(child, enabled ? "Check" : "-Check")
+    return enabled
+}
+
+HKTreeItemCheck(tv, item, checked) {
+    global gHKNodes, gHKChildren, gHKBusy, gHKTree
+
+    ; Modify() vuelve a disparar ItemCheck: sin esta guarda, la cascada de una
+    ; sección con 8 hijos se convierte en una tormenta de eventos.
+    if (gHKBusy || !gHKNodes.Has(item))
+        return
+    gHKBusy := true
+
+    node := gHKNodes[item]
+    if (node.kind = "section") {
+        for child in gHKChildren[item]
+            HKApplyChild(child, checked)
+        HKSyncSection(item)
+    } else if (node.bad) {
+        gHKTree.Modify(item, "Check")
+        HKToggleTip("Ese hotkey no se encontró en el script (ver [!]): no se puede apagar.")
+    } else if (node.protected && !checked) {
+        gHKTree.Modify(item, "Check")
+        HKToggleTip("Ctrl+Alt+R no se puede apagar: es la única forma de reabrir este menú.")
+    } else {
+        HKApply(node.entry, node.key, checked)
+        ; Redundante cuando lo dispara un clic (Windows ya movió el tilde), pero
+        ; deja el checkbox y el estado siempre consistentes.
+        gHKTree.Modify(item, checked ? "Check" : "-Check")
+        HKSyncSection(gHKTree.GetParent(item))
+    }
+
+    gHKBusy := false
+}
+
+HKSetAll(enabled) {
+    global gHKChildren, gHKBusy
+    gHKBusy := true
+    for secNode, kids in gHKChildren {
+        for child in kids
+            HKApplyChild(child, enabled)
+        HKSyncSection(secNode)
+    }
+    gHKBusy := false
+}
+
+HKExpandAll(expand) {
+    global gHKTree, gHKChildren
+    for secNode, kids in gHKChildren
+        gHKTree.Modify(secNode, expand ? "Expand" : "-Expand")
+}
+
+; ============================================================================
 ; AHK_Manager.ahk  (Ctrl+Alt+R reabre/activa la ventana del Manager)
 ; ============================================================================
 ^!r::
@@ -1237,7 +1616,8 @@ AddButton("x+5", "yp", "w85", "GUI Reload", (*) => Reload())
 AddButton("x+5", "yp", "w85", "Quit", (*) => ExitApp())
 
 ; Row 4
-AddButton("x103", "y+5", "w170", "Macro Recorder", (*) => OpenMacroRecorder())
+AddButton("x10", "y+5", "w170", "Macro Recorder", (*) => OpenMacroRecorder())
+AddButton("x+5", "yp",  "w170", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
 
 MyGui.OnEvent("Close", (*) => MyGui.Hide())
 MyGui.Show("w375 h365")
