@@ -18,8 +18,10 @@
 ;   - Escape y Alt+Espacio (cerrar/recargar) del Manager ahora solo actúan
 ;     cuando la ventana del Manager está activa (antes era global porque
 ;     el Manager corría en su propio proceso).
-;   - El botón "Quit" del Manager y la tecla Escape (con su ventana activa)
-;     cierran TODO este script unificado (antes solo cerraban el Manager).
+;   - Cerrar TODO este script unificado quedó exclusivamente en el botón "Quit"
+;     del Manager (o seleccionar este script en la lista y darle "Kill"). La
+;     tecla Escape, con la ventana del Manager activa, solo oculta esa ventana
+;     -- igual que la X -- y deja todos los hotkeys andando.
 ;   - Ctrl+Alt+R ahora muestra/reactiva la ventana del Manager en lugar de
 ;     lanzar un proceso nuevo.
 ; ============================================================================
@@ -1625,7 +1627,7 @@ Refresh()
 
 ; Escape / Alt+Espacio solo afectan cuando la ventana del Manager está activa
 #HotIf WinActive("ahk_id " MyGui.Hwnd)
-~Escape::ExitApp
+~Escape::MyGui.Hide()   ; solo oculta la ventana: para cerrar el script está "Quit"
 ~!Space::Reload
 #HotIf
 
