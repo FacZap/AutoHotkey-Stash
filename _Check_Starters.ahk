@@ -73,6 +73,10 @@ scripts.Push({ label: "macro_insta_name.ahk"
              , kind:  "ahk"
              , id:    "macro_insta_name.ahk" })
 
+scripts.Push({ label: "MacroRecorder.ahk"
+             , kind:  "ahk"
+             , id:    "MacroRecorder.ahk" })
+
 scripts.Push({ label: "find_wise_reminder.ahk"
              , kind:  "ahk"
              , id:    "find_wise_reminder.ahk" })

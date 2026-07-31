@@ -1689,13 +1689,24 @@ EditScript() {
     Refresh()
 }
 
+; Launches MacroRecorder.ahk as its own process — it must stay separate,
+; because while recording it registers a hotkey for every virtual key and
+; would collide with this script's own bindings.
+; Alt+F1 opens its window; see README_MacroRecorder.md.
 OpenMacroRecorder() {
-    macroRecorderPath := "C:\autohotkey\Macro.Recorder.exe"
-    if FileExist(macroRecorderPath) {
-        Run(macroRecorderPath)
-    } else {
-        MsgBox("Unable to find Macro.Recorder.exe at: " macroRecorderPath)
+    macroRecorderPath := "C:\autohotkey\MacroRecorder.ahk"
+    if !FileExist(macroRecorderPath) {
+        MsgBox("Unable to find MacroRecorder.ahk at: " macroRecorderPath)
+        return
     }
+    ; already running? just bring its window up
+    DetectHiddenWindows(true)
+    SetTitleMatchMode(2)
+    if WinExist(macroRecorderPath " ahk_class AutoHotkey") {
+        Send "!{F1}"
+        return
+    }
+    Run('"' A_AhkPath '" "' macroRecorderPath '"')
 }
 
 SendAHKMessage(scriptPath, message) {

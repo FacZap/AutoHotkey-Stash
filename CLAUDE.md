@@ -37,6 +37,7 @@ AHK v1 and v2 cannot run in the same process. The master was created to consolid
 | App launchers | `find_wise_reminder`, `open_hourglass`, `url_chrome` |
 | Time utilities | `calendar`, `Sleep_Timer`, `Show_Time` |
 | Meta / management | `AHK_Manager`, `_Check_Starters`, `^RUN_starters` |
+| Macro recording | `MacroRecorder` |
 
 ### Management scripts
 
@@ -44,6 +45,21 @@ AHK v1 and v2 cannot run in the same process. The master was created to consolid
 - `_Check_Starters.ahk` — status-checker GUI for 20+ configured scripts/programs.
 - `^RUN_starters.ahk` — auto-launches RBTray.exe and Wise Reminder at startup.
 - `^CLOSE_starters.ahk` — mass-terminates managed scripts.
+
+### Macro recorder
+
+`MacroRecorder.ahk` (v2) records input into up to 12 slots. It must stay a
+**separate process** from the master: while recording it registers a `~*vk`
+hotkey for every virtual key, which would collide with the master's bindings.
+The master's Manager GUI launches it via `OpenMacroRecorder()`.
+
+- Macros are stored as standalone runnable `.ahk` scripts in `macros\`;
+  playback launches one in its own process.
+- `macros\macros.ini` is the slot index and settings file.
+- Defaults: `Win+Alt+F1..F12` play, `Win+Alt+Shift+F1..F12` record, `Alt+F1` GUI,
+  `Ctrl+Alt+Esc` panic stop. `Ctrl+Alt+F7/F9/F10` were unavailable — the master
+  already uses them.
+- Full usage: `README_MacroRecorder.md`. Remaining work: `TODO_MacroRecorder.md`.
 
 ### External utilities (bundled)
 
