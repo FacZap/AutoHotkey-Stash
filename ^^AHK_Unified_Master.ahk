@@ -48,6 +48,15 @@ clickYY := 150
 global idleMinutes := 0
 global idleThresholdMs := idleMinutes * 60 * 1000
 
+; ---- Teclas alternativas para los hotkeys que dependen del teclado numérico ----
+;   En equipos sin numpad, Win+Numpad5 (calendario), Win+Numpad* (inactividad) y
+;   Shift+NumpadEnter (Google Calendar) son inalcanzables. Estas alternativas
+;   (Win+Shift+C / I / G) replican esas tres acciones.
+;   Arrancan HABILITADAS solo en "thinkpad-win11\lenovo_t14"; en cualquier otro
+;   equipo arrancan DESHABILITADAS. Se prenden/apagan desde el AHK Manager.
+global gAltNumpadHotkeys := ["#+c", "#+i", "#+g"]   ; Win+Shift+C / Win+Shift+I / Win+Shift+G
+global gAltNumpadDefault := (A_ComputerName = "THINKPAD-WIN11" && A_UserName = "LENOVO_T14")
+
 ; ============================================================================
 ; arrows-keystrokes.ahk
 ; ============================================================================
@@ -175,6 +184,7 @@ BrightnessOSD() {
 ; calendar.ahk
 ; ============================================================================
 #Numpad5::ShowCalendarGui()
+#+c::ShowCalendarGui()   ; alternativa sin numpad (Win+Shift+C) — ver gAltNumpadHotkeys
 
 ShowCalendarGui() {
     cg := Gui("+AlwaysOnTop +ToolWindow", "Calendario")
@@ -343,7 +353,10 @@ RAlt & Numpad5::Send "{Media_Play_Pause}"
 if (idleMinutes > 0)          ; arranca el monitoreo solo si viene habilitado
     SetTimer(IdleCheck, 1000)
 
-#NumpadMult:: {
+#NumpadMult::IdleSetThreshold()
+#+i::IdleSetThreshold()   ; alternativa sin numpad (Win+Shift+I) — ver gAltNumpadHotkeys
+
+IdleSetThreshold() {
     global idleMinutes, idleThresholdMs
 
     ib := InputBox("Enter minutes of inactivity before hiding to desktop (0 = disabled):"
@@ -681,8 +694,10 @@ GoogleCalendarIniFile := A_ScriptDir "\find_google_calendar.ini"
 GoogleCalendarBrowserExe := Map("Chrome", "chrome.exe", "Firefox", "firefox.exe")
     .Get(IniRead(GoogleCalendarIniFile, "Settings", "Browser", "Chrome"), "chrome.exe")
 
-+NumpadEnter::
-{
++NumpadEnter::FindGoogleCalendarTab()
+#+g::FindGoogleCalendarTab()   ; alternativa sin numpad (Win+Shift+G) — ver gAltNumpadHotkeys
+
+FindGoogleCalendarTab() {
     global GoogleCalendarBrowserExe
     for hwnd in WinGetList("ahk_exe " GoogleCalendarBrowserExe) {
         root := UIA.ElementFromHandle(hwnd)
@@ -1571,6 +1586,20 @@ HKExpandAll(expand) {
 }
 
 ; ============================================================================
+; Teclas alternativas sin numpad (Win+Shift+C / I / G)
+;   Prende o apaga las tres alternativas de una sola vez. La casilla del AHK
+;   Manager llama a esto; el estado inicial lo fija gAltNumpadDefault según el
+;   equipo (whoami == thinkpad-win11\lenovo_t14 -> habilitadas).
+; ============================================================================
+SetAltNumpadKeys(enabled) {
+    global gAltNumpadHotkeys
+    HotIf()   ; contexto global explícito (las alternativas no usan #HotIf)
+    for hk in gAltNumpadHotkeys {
+        try Hotkey(hk, , enabled ? "On" : "Off")
+    }
+}
+
+; ============================================================================
 ; AHK_Manager.ahk  (Ctrl+Alt+R reabre/activa la ventana del Manager)
 ; ============================================================================
 ^!r::
@@ -1621,8 +1650,18 @@ AddButton("x+5", "yp", "w85", "Quit", (*) => ExitApp())
 AddButton("x10", "y+5", "w170", "Macro Recorder", (*) => OpenMacroRecorder())
 AddButton("x+5", "yp",  "w170", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
 
+; Row 5 — Teclas alternativas sin numpad (Win+Shift+C / I / G)
+AltNumpadChk := MyGui.Add("CheckBox", "x10 y+8 w360 cFFFFFF", "Teclas alternativas sin numpad  (Win+Shift+C / I / G)")
+AltNumpadChk.SetFont("s10", "Calibri")
+AltNumpadChk.Value := gAltNumpadDefault
+AltNumpadChk.OnEvent("Click", (*) => SetAltNumpadKeys(AltNumpadChk.Value))
+MyGui.Add("Text", "x28 y+2 w345 c9aa0ad",
+    "Calendario, inactividad y Google Calendar sin teclado numérico.").SetFont("s8", "Calibri")
+; Estado inicial de las alternativas según el equipo (whoami).
+SetAltNumpadKeys(gAltNumpadDefault)
+
 MyGui.OnEvent("Close", (*) => MyGui.Hide())
-MyGui.Show("w375 h365")
+MyGui.Show("w375 h405")
 Refresh()
 
 ; Escape / Alt+Espacio solo afectan cuando la ventana del Manager está activa
@@ -1757,10 +1796,17 @@ ManageAllScripts(action) {
 ; ============================================================================
 ; ^RUN_starters.ahk  (programas externos lanzados al iniciar)
 ; ============================================================================
-Sleep 200
-Run "C:\autohotkey\RBTray-4_3\64bit\RBTray.exe"
-Run "C:\Users\fzapata\Desktop\Wise Reminder.lnk"
+Sleep 100
+rbTray := "C:\autohotkey\RBTray-4_3\64bit\RBTray.exe"
+wiseReminder := "C:\Users\fzapata\Desktop\Wise Reminder.lnk"
 
+if FileExist(rbTray)
+    Run rbTray
+
+if FileExist(wiseReminder)
+    Run wiseReminder
+
+; Rest of your script continues normally...
 ; ----
 ; Pruebas Manuales de hotkeys (decidir luego si eliminar)
 ; ----

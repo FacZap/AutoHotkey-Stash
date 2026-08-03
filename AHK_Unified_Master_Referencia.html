@@ -12,6 +12,7 @@
   body{
     margin:0; padding:40px 24px 80px; background:var(--bg); color:var(--text);
     font-family:Segoe UI, Calibri, system-ui, sans-serif; line-height:1.5;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
   }
   .wrap{max-width:980px; margin:0 auto;}
   h1{font-size:1.9rem; margin:0 0 4px; color:var(--accent);}
@@ -45,6 +46,8 @@
   }
   .pill.gui{background:#3a3052; color:var(--accent);}
   .pill.hold{background:#3a4a30; color:#bdf08a;}
+  .pill.alt{background:#4a3a30; color:#f0c88a;}
+  .key.alt{border-color:#7a5a3a; color:#f5d9a8;}
   footer{margin-top:50px; color:var(--muted); font-size:0.8rem; text-align:center;}
   code.inline{background:var(--tag); padding:1px 6px; border-radius:4px; font-size:0.85em;}
 </style>
@@ -56,7 +59,7 @@
   <p class="subtitle">Referencia completa de hotkeys, hotstrings y funcionalidades — generada 100% a partir del contenido real del archivo unificado.</p>
 
   <div class="note">
-    <b>Cómo leer esto:</b> cada sección corresponde a un bloque del script (identificado con comentarios <code class="inline">; ====</code> dentro del .ahk, con el nombre del script original del que proviene). El <span class="pill hold">mantener presionado</span> indica una acción que se repite mientras se mantiene el botón del mouse. El <span class="pill gui">ventana</span> indica que abre una interfaz gráfica.
+    <b>Cómo leer esto:</b> cada sección corresponde a un bloque del script (identificado con comentarios <code class="inline">; ====</code> dentro del .ahk, con el nombre del script original del que proviene). El <span class="pill hold">mantener presionado</span> indica una acción que se repite mientras se mantiene el botón del mouse. El <span class="pill gui">ventana</span> indica que abre una interfaz gráfica. El <span class="pill alt">alternativa sin numpad</span> marca un atajo agregado para teclados sin teclado numérico: replica un hotkey de numpad y se prende/apaga con la casilla <b>"Teclas alternativas sin numpad"</b> del AHK Manager (arranca activo solo en <code class="inline">thinkpad-win11\lenovo_t14</code>).
   </div>
 
   <h2>Teclado y navegación <span class="src">arrows-keystrokes.ahk</span></h2>
@@ -108,6 +111,7 @@
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>
     <tr><td><span class="key">Win + Numpad 5</span></td><td class="desc">Abre una mini ventana con un calendario. Seleccionás una fecha y presionás "Copiar" (o Enter) para copiarla al portapapeles en formato <code class="inline">dd/MM/yyyy</code>; "Cancelar" (o Esc) cierra sin copiar.</td></tr>
+    <tr><td><span class="key alt">Win + Shift + C</span> <span class="pill alt">alternativa sin numpad</span></td><td class="desc">Misma acción que <span class="key">Win + Numpad 5</span>, pensada para teclados sin numérico. Se habilita/deshabilita desde el AHK Manager (por defecto solo activa en <code class="inline">thinkpad-win11\lenovo_t14</code>).</td></tr>
   </table>
 
   <h2>Registro de texto / log <span class="src">logger.ahk</span></h2>
@@ -134,6 +138,7 @@
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>
     <tr><td><span class="key">Win + Numpad *</span></td><td class="desc">Abre un cuadro para fijar los minutos de inactividad física tras los cuales se oculta todo al escritorio (Win+D), restaurándose al primer input. <code class="inline">0</code> = desactivado. Por defecto arranca desactivado (0 min).</td></tr>
+    <tr><td><span class="key alt">Win + Shift + I</span> <span class="pill alt">alternativa sin numpad</span></td><td class="desc">Misma acción que <span class="key">Win + Numpad *</span>, pensada para teclados sin numérico. Se habilita/deshabilita desde el AHK Manager (por defecto solo activa en <code class="inline">thinkpad-win11\lenovo_t14</code>).</td></tr>
   </table>
 
   <h2>Timer → Win+Alt+S <span class="src">!_STARTUP_merged.ahk</span> <span class="pill gui">ventana</span></h2>
@@ -198,6 +203,7 @@
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>
     <tr><td><span class="key">Shift + Numpad Enter</span></td><td class="desc">Busca entre las ventanas del navegador configurado (Chrome o Firefox) una pestaña cuyo título contenga "Calendario" o "Google Calendar", la selecciona y activa esa ventana.</td></tr>
+    <tr><td><span class="key alt">Win + Shift + G</span> <span class="pill alt">alternativa sin numpad</span></td><td class="desc">Misma acción que <span class="key">Shift + Numpad Enter</span>, pensada para teclados sin numérico. Se habilita/deshabilita desde el AHK Manager (por defecto solo activa en <code class="inline">thinkpad-win11\lenovo_t14</code>).</td></tr>
   </table>
 
   <h2>Cerrar ventanas masivamente <span class="src">kill_all.ahk</span></h2>
@@ -260,6 +266,7 @@
     <tr><td><span class="key">Open Folder</span></td><td class="desc">Abre <code class="inline">C:\autohotkey</code> en el Explorador de Windows.</td></tr>
     <tr><td><span class="key">GUI Reload</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
     <tr><td><span class="key">Quit</span></td><td class="desc">Cierra por completo este script unificado (todas las funcionalidades dejan de estar activas).</td></tr>
+    <tr><td><span class="key">☐ Teclas alternativas sin numpad</span></td><td class="desc">Prende/apaga de una sola vez las tres alternativas sin numpad: <span class="key alt">Win + Shift + C</span> (calendario), <span class="key alt">Win + Shift + I</span> (inactividad) y <span class="key alt">Win + Shift + G</span> (Google Calendar). Arranca tildada solo en <code class="inline">thinkpad-win11\lenovo_t14</code>; en cualquier otro equipo arranca destildada.</td></tr>
     <tr><td><span class="key">Escape</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Oculta la ventana del Manager, igual que la X. <strong>No</strong> cierra el script: todos los hotkeys siguen activos. Para cerrarlo está el botón <code class="inline">Quit</code>.</td></tr>
     <tr><td><span class="key">Alt + Espacio</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
   </table>
