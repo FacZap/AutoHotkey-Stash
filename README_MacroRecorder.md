@@ -146,6 +146,11 @@ other script — and run it directly without the recorder.
 SPEED := 1.00          ; playback rate
 REPEAT := 1            ; how many times to run
 
+; wait for the launch hotkey's modifiers to be released
+__deadline := A_TickCount + 3000
+while (A_TickCount < __deadline && (GetKeyState("LWin", "P") || ...))
+    Sleep(20)
+
 Loop(REPEAT)
 {
 Send "{Blind}{Ctrl Down}s{Ctrl Up}"
@@ -154,10 +159,22 @@ Sleep(Round(570 / SPEED))
 
 MouseClick("L", 1204, 388) ;screen
 }
+; release any modifier this macro left held down
+for __k in ["LWin", "RWin", "Ctrl", "Alt", "Shift"]
+    if GetKeyState(__k)
+        Send("{" __k " Up}")
 ExitApp()
 
 ^!Esc::ExitApp()       ; abort while it runs
 ```
+
+The two guards around the body are boilerplate, not macro content — the step
+editor skips them. The opening one matters: keystrokes are sent with `{Blind}`,
+which preserves whatever modifiers you're physically holding, and the play
+hotkey is a chord. Without the wait, a macro launched with `Win+Alt+F2` starts
+typing while Win and Alt are still down and every keystroke comes out as
+`Win+Alt+key`. It adds no delay once your fingers are off the keys, and gives up
+after 3 seconds so a stuck key can't hang playback.
 
 Every mouse click is recorded three times — screen, window and relative
 coordinates — with two of them commented out. To switch a macro to a different
@@ -170,6 +187,13 @@ and repeat count. Deleting it resets the slots; the macro files survive.
 
 ## Notes and limits
 
+- **Step counts are the steps that will actually run.** Disabled (commented-out)
+  lines aren't counted, which is why a recording of "type, pause, type" reports
+  4 rather than 5 — the window-activation marker that screen mode leaves behind
+  is inert. The step editor shows the inert ones too, with an `Enabled` column.
+- **The library self-repairs on startup.** Macros written by an older version
+  get the modifier guards added, and two slots that ended up sharing one file
+  are split into separate copies. Both are one-time and idempotent.
 - **Old recordings were imported automatically.** On first run, any
   `%TEMP%\~Record1.ahk` / `~Record2.ahk` from the previous recorder was copied
   into slots 1 and 2 and upgraded to the current format. Their `Sleep` lines

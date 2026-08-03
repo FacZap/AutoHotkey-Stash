@@ -61,6 +61,32 @@ global MacroGui := "", SlotLV := "", StatusText := ""
 global StepGui  := "", StepLV := "", StepSlot := 0, StepCache := []
 global CfgGui   := ""
 
+; --- boilerplate injected into every generated macro ---
+
+; Every recorded keystroke is sent with {Blind}, which deliberately keeps
+; whatever modifiers are physically held. The play hotkey is a chord, so
+; without this wait the macro starts typing while Win+Alt are still down and
+; every keystroke comes out as Win+Alt+key. Bounded, so a genuinely stuck key
+; can't hang the macro forever.
+global MODIFIER_PREAMBLE := "
+(
+; wait for the launch hotkey's modifiers to be released
+__deadline := A_TickCount + 3000
+while (A_TickCount < __deadline && (GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
+    || GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("Shift", "P")))
+    Sleep(20)
+)" "`n"
+
+; Safety net: a recording cut off mid-chord can leave a modifier pressed with
+; no matching release, which would wedge the keyboard after playback.
+global MODIFIER_EPILOGUE := "
+(
+; release any modifier this macro left held down
+for __k in ["LWin", "RWin", "Ctrl", "Alt", "Shift"]
+    if GetKeyState(__k)
+        Send("{" __k " Up}")
+)" "`n"
+
 ; ============================================================================
 ; Startup
 ; ============================================================================
@@ -69,6 +95,8 @@ EnsureLibrary()
 LoadSettings()
 LoadSlots()
 MigrateLegacyRecordings()
+DeAliasSlots()
+UpgradeLibrary()
 BindControlHotkeys()
 BindSlotHotkeys()
 BuildTrayMenu()
@@ -226,26 +254,98 @@ MigrateLegacyRecordings() {
 ; them. Rewrite them into the current format. Sleep lines keep their enabled /
 ; disabled state — use the step editor to switch them on.
 UpgradeMacroFile(path) {
-    global PanicHotkey
+    global PanicHotkey, MODIFIER_PREAMBLE, MODIFIER_EPILOGUE
     if !FileExist(path)
         return false
     txt := FileRead(path)
-    if InStr(txt, "SPEED :=")
+    changed := false
+
+    ; --- pre-v2 library format: no SPEED/REPEAT, hardcoded Sleep() / Loop(1) ---
+    if !InStr(txt, "SPEED :=") {
+        txt := RegExReplace(txt, "m)^(\s*;?)Sleep\((\d+)\)", "$1Sleep(Round($2 / SPEED))")
+        txt := RegExReplace(txt, "m)^Loop\(\d+\)", "Loop(REPEAT)")
+        ; drop the vestigial registry run-counter block
+        txt := RegExReplace(txt, "m)^(StartingValue := 0|i := RegRead\(.*|RegWrite\(.*)\R?", "")
+        ; re-point the macro's own abort hotkey at the configured panic key
+        txt := RegExReplace(txt, "m)^\S+::ExitApp\(\)",
+                            StrReplace(PanicHotkey, "$", "$$") "::ExitApp()")
+        txt := "#Requires AutoHotkey v2.0`n#SingleInstance Off`n"
+             . "SPEED := 1.00`nREPEAT := 1`nif (SPEED <= 0)`n    SPEED := 1.0`n`n" txt
+        changed := true
+    }
+
+    ; --- macros written before the modifier-bleed fix ---
+    if !InStr(txt, "__deadline") {
+        txt := RegExReplace(txt, "m)^Loop\(REPEAT\)", MODIFIER_PREAMBLE "`nLoop(REPEAT)", , 1)
+        changed := true
+    }
+    if !InStr(txt, "__k") {
+        txt := RegExReplace(txt, "m)^ExitApp\(\)", MODIFIER_EPILOGUE "ExitApp()", , 1)
+        changed := true
+    }
+
+    if (!changed)
         return false
-
-    txt := RegExReplace(txt, "m)^(\s*;?)Sleep\((\d+)\)", "$1Sleep(Round($2 / SPEED))")
-    txt := RegExReplace(txt, "m)^Loop\(\d+\)", "Loop(REPEAT)")
-    ; drop the vestigial registry run-counter block
-    txt := RegExReplace(txt, "m)^(StartingValue := 0|i := RegRead\(.*|RegWrite\(.*)\R?", "")
-    ; re-point the macro's own abort hotkey at the configured panic key
-    txt := RegExReplace(txt, "m)^\S+::ExitApp\(\)",
-                        StrReplace(PanicHotkey, "$", "$$") "::ExitApp()")
-
-    header := "#Requires AutoHotkey v2.0`n#SingleInstance Off`n"
-            . "SPEED := 1.00`nREPEAT := 1`nif (SPEED <= 0)`n    SPEED := 1.0`n`n"
     FileDelete(path)
-    FileAppend(header . txt, path, "UTF-8")
+    FileAppend(txt, path, "UTF-8")
     return true
+}
+
+; Bring every macro already in the library up to the current format. Idempotent
+; -- each step checks for its own marker first.
+UpgradeLibrary() {
+    global SlotCount, Slots
+    Loop SlotCount {
+        n := A_Index
+        if !SlotFilled(n)
+            continue
+        try UpgradeMacroFile(SlotPath(n))
+        ; the file may have been hand-edited since it was last indexed
+        if ((c := CountSteps(SlotPath(n))) != Slots[n].steps) {
+            Slots[n].steps := c
+            SaveSlot(n)
+        }
+    }
+}
+
+; Give each slot its own file. Duplicating twice used to produce the same
+; "<name> copy.ahk" for both slots, so renaming or editing one silently changed
+; the other. Split them rather than dropping either.
+DeAliasSlots() {
+    global Slots, SlotCount
+    seen := Map()
+    Loop SlotCount {
+        n := A_Index
+        if !SlotFilled(n)
+            continue
+        key := StrLower(Slots[n].file)
+        if !seen.Has(key) {
+            seen[key] := n
+            continue
+        }
+        newFile := UniqueMacroFile(Slots[n].name)
+        try {
+            FileCopy(SlotPath(n), MacroDir "\" newFile, false)
+            Slots[n].file := newFile
+            SplitPath(newFile, , , , &base)
+            Slots[n].name := base
+            SyncMacroHeaderName(MacroDir "\" newFile, base)
+            SaveSlot(n)
+            seen[StrLower(newFile)] := n
+        }
+    }
+}
+
+; Two slots must never point at the same file: "Macro 2 copy.ahk" twice means
+; editing one silently edits the other.
+UniqueMacroFile(name) {
+    global MacroDir
+    base := SanitizeFileName(name)
+    candidate := base
+    i := 1
+    while FileExist(MacroDir "\" candidate ".ahk")
+        candidate := base " " (++i)
+    return candidate ".ahk"
 }
 
 JoinArr(arr, sep) {
@@ -392,7 +492,7 @@ StartRecording(n) {
     SetCapture(true)
     CoordMode("Mouse", "Screen")
     MouseGetPos(&RelativeX, &RelativeY)
-    ShowTip("REC " n)
+    ShowTip("REC SLOT " n)
 }
 
 ; save = true  -> write the macro; false -> discard (cancel)
@@ -403,30 +503,38 @@ StopRecording(save := true) {
         ShowTip()
         return
     }
+    ; The stop chord's modifiers are still held right now, and each one has a
+    ; thread parked in KeyWait. The moment this thread yields, those threads
+    ; resume and clear PendingMods -- and TrimPendingChord would then have
+    ; nothing left to match, leaving "{LWin Down}{Alt Down}" in the macro.
+    ; So trim first, uninterrupted, before touching anything that can yield.
+    Critical()
     Recording := false
+    TrimPendingChord()
+    Critical("Off")
+
     SetCapture(false)
     n := RecordSlot
     RecordSlot := 0
-    TrimPendingChord()
 
     if (!save) {
-        ShowTip("CANCELLED")
+        ShowTip("SLOT " n " CANCELLED")
         SetTimer(() => ShowTip(), -1200)
     } else if (LogArr.Length = 0) {
-        ShowTip("NOTHING RECORDED")
+        ShowTip("SLOT " n " — NOTHING RECORDED")
         SetTimer(() => ShowTip(), -1500)
     } else {
         s := Slots[n]
         if (s.name = "")
             s.name := "Macro " n
         if (s.file = "")
-            s.file := SanitizeFileName(s.name) ".ahk"
+            s.file := UniqueMacroFile(s.name)
         path := MacroDir "\" s.file
         WriteMacroFile(path, n, LogArr)
         s.steps := CountSteps(path)
         SaveSlot(n)
-        ShowTip("SAVED " s.steps)
-        SetTimer(() => ShowTip(), -1200)
+        ShowTip("SLOT " n " SAVED")
+        SetTimer(() => ShowTip(), -1400)
     }
 
     LogArr := []
@@ -476,7 +584,7 @@ InsertManualPause(*) {
         LogArr.Push("Sleep(Round(" Integer(ib.Value) " / SPEED))")
     Log()                                   ; reset the delay clock
     SetCapture(true)
-    ShowTip("REC " RecordSlot)
+    ShowTip("REC SLOT " RecordSlot)
 }
 
 ; ============================================================================
@@ -683,10 +791,12 @@ WriteMacroFile(path, n, body) {
     else
         out .= "CoordMode(`"Mouse`", `"Screen`")`n;CoordMode(`"Mouse`", `"Window`")`n"
 
+    out .= "`n" MODIFIER_PREAMBLE
     out .= "`nLoop(REPEAT)`n{`n"
     for k, v in body
         out .= "`n" v "`n"
-    out .= "`n}`nExitApp()`n`n"
+    out .= "`n}`n" MODIFIER_EPILOGUE
+    out .= "ExitApp()`n`n"
     out .= PanicHotkey "::ExitApp()`n"
 
     out := RegExReplace(out, "\R", "`n")
@@ -725,8 +835,28 @@ ParseMacro(path) {
     if !FileExist(path)
         return steps
     lines := ReadMacroLines(path)
-    i := 0
-    while (++i <= lines.Length) {
+
+    ; Only what sits between "Loop(...)" and its closing brace is macro content.
+    ; The modifier-guard preamble contains a Sleep(20) and the epilogue a Send()
+    ; -- boilerplate that must never appear as an editable step.
+    first := 1, last := lines.Length
+    for idx, l in lines {
+        if RegExMatch(Trim(l), "^Loop\(") {
+            first := idx + 1
+            break
+        }
+    }
+    idx := first
+    while (idx <= lines.Length) {
+        if (Trim(lines[idx]) = "}") {
+            last := idx - 1
+            break
+        }
+        idx++
+    }
+
+    i := first - 1
+    while (++i <= last) {
         t := Trim(lines[i])
         disabled := false
         if (SubStr(t, 1, 1) = ";") {
@@ -750,16 +880,17 @@ ParseMacro(path) {
             steps.Push({first: i, last: i, type: "Mouse", ms: 0,
                         text: RegExReplace(t, "^MouseClick\(|\)\s*;.*$", ""), disabled: disabled})
         } else if (RegExMatch(t, "^tt := `"(.*)`"$", &m)) {
-            last := i, j := i
-            while (j + 1 <= lines.Length) {
+            ; a window step spans tt := / WinWait / if / WinActivate
+            wEnd := i, j := i
+            while (j + 1 <= last) {
                 nxt := Trim(lines[j + 1])
                 nb := (SubStr(nxt, 1, 1) = ";") ? Trim(SubStr(nxt, 2)) : nxt
                 if RegExMatch(nb, "^(WinWait\(|if \(!WinActive|WinActivate\()")
-                    last := ++j
+                    wEnd := ++j
                 else
                     break
             }
-            steps.Push({first: i, last: last, type: "Window", ms: 0,
+            steps.Push({first: i, last: wEnd, type: "Window", ms: 0,
                         text: m[1], disabled: disabled})
             i := j
         }
@@ -767,8 +898,15 @@ ParseMacro(path) {
     return steps
 }
 
+; Only steps that will actually run. In screen mouse mode every window change
+; adds a commented-out activation block, so counting raw parsed lines reports
+; numbers that look arbitrary next to what the user actually did.
 CountSteps(path) {
-    return ParseMacro(path).Length
+    n := 0
+    for st in ParseMacro(path)
+        if !st.disabled
+            n++
+    return n
 }
 
 MacroDuration(path) {
@@ -1160,7 +1298,8 @@ GuiDuplicate() {
         return
     }
     name := Slots[n].name " copy"
-    file := SanitizeFileName(name) ".ahk"
+    file := UniqueMacroFile(name)
+    SplitPath(file, , , , &name)          ; keep the name in step with the file
     try {
         FileCopy(SlotPath(n), MacroDir "\" file, true)
         Slots[target].file   := file
@@ -1272,8 +1411,14 @@ RefreshStepList() {
     StepLV.ModifyCol(2, 65)
     StepLV.ModifyCol(3, 420)
     StepLV.ModifyCol(4, 65)
+    off := 0
+    for st in StepCache
+        if st.disabled
+            off++
     try StepGui.Title := "Macro steps — " Slots[StepSlot].name
-         . " (" StepCache.Length " steps, " Round(MacroDuration(path) / 1000, 1) "s of waits)"
+         . " (" (StepCache.Length - off) " active"
+         . (off ? ", " off " disabled" : "")
+         . ", " Round(MacroDuration(path) / 1000, 1) "s of waits)"
 }
 
 SelectedStep() {

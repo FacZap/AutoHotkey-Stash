@@ -11,6 +11,12 @@ if (SPEED <= 0)
 ;MouseMode=screen
 ;Record sleep between input actions (true,false)
 ;RecordSleep=false
+; wait for the launch hotkey's modifiers to be released
+__deadline := A_TickCount + 3000
+while (A_TickCount < __deadline && (GetKeyState("LWin", "P") || GetKeyState("RWin", "P")
+    || GetKeyState("Ctrl", "P") || GetKeyState("Alt", "P") || GetKeyState("Shift", "P")))
+    Sleep(20)
+
 Loop(REPEAT)
 {
 
@@ -55,6 +61,10 @@ Send "{Blind}{Ctrl Down}s{Ctrl Up}"
 
 
 }
+; release any modifier this macro left held down
+for __k in ["LWin", "RWin", "Ctrl", "Alt", "Shift"]
+    if GetKeyState(__k)
+        Send("{" __k " Up}")
 ExitApp()
 
 ^!Esc::ExitApp()

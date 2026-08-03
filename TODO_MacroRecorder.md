@@ -92,6 +92,33 @@ Usage docs: [README_MacroRecorder.md](README_MacroRecorder.md).
 
 ---
 
+## 7b. Fixed after the first real use
+
+- [x] **Stop chord leaked into recordings.** `StopRecording` set
+      `Recording := false`, ran `SetCapture(false)` (254 `Hotkey()` calls), and
+      only then called `TrimPendingChord()`. Releasing Win/Alt/Shift during
+      `SetCapture` woke the parked `KeyWait` threads, which cleared
+      `PendingMods` — so the trim found nothing and `{LWin Down}{Alt Down}` was
+      saved as macro content. Now `Critical()` + trim first, before anything
+      that can yield.
+- [x] **Playback corrupted by held modifiers.** Keystrokes are sent with
+      `{Blind}`, which preserves physically-held modifiers, and the play hotkey
+      is a chord — so macros started typing as `Win+Alt+key`. Generated macros
+      now wait (bounded, 3 s) for the launch modifiers to be released.
+- [x] **Stuck modifiers after playback.** A macro containing an unmatched
+      `{X Down}` wedged the keyboard. Macros now release any modifier they left
+      held.
+- [x] **"SAVED n" reported meaningless numbers.** Partly the leaked chord,
+      partly that `CountSteps` counted commented-out window markers. Now counts
+      only steps that will run; the step-editor title shows active/disabled.
+- [x] **Preamble `Sleep(20)` appeared as an editable step.** `ParseMacro` now
+      only scans between `Loop(...)` and its closing brace.
+- [x] **Duplicating twice aliased two slots to one file.** `UniqueMacroFile()`
+      for new files, `DeAliasSlots()` to split existing ones.
+- [x] **Stale step counts** in `macros.ini` refreshed on startup.
+
+---
+
 ## 8. Notes discovered along the way
 
 - **Default prefixes are `Win+Alt` / `Win+Alt+Shift`, not `Ctrl+Alt`.** The
@@ -106,3 +133,8 @@ Usage docs: [README_MacroRecorder.md](README_MacroRecorder.md).
   checking.
 - `_Check_Starters.ahk` is an AHK **v1** script, so it can't be validated with
   the v2 binary.
+- `AutoHotkey.exe /validate` **hangs on a warning** (e.g. unreachable code) —
+  it puts up a dialog even with `/ErrorStdOut`. Cap the wait when scripting it.
+- `Log` is a built-in function in v2 (natural logarithm). `MacroRecorder.ahk`
+  shadows it with its own `Log()`, which is fine, but a bare `log := ...` in
+  any other script is a load-time error.
