@@ -90,6 +90,8 @@ global idleThresholdMs := idleMinutes * 60 * 1000
 {
     SendInput FormatTime(, "HH:mm")
 }
+::kfz::fzapata@iea.com.ar
+::kzf::zapatafacundo17@gmail.com
 
 ; ============================================================================
 ; backwards-slash.ahk
