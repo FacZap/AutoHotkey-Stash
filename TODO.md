@@ -12,3 +12,6 @@ To Do / Pendientes:
     (uso: README_MacroRecorder.md · pendientes menores: TODO_MacroRecorder.md)
 [X] menu GUI/popup (tal vez incorporado en Manager? o incorporado en la GUI de referencia de hotkeys?) para desactivar hotkeys particulares
   (por ejemplo, quiero desactivar el manejo de la ventana con Alt + Click Izq/Der, pero que todas las otras funcionalidades del script maestro sigan)
+[] Windows Cycler F6 (con timer): minimizar ventana luego de iniciar un timer
+[] Windows Cycler F6 (con timer): implementar funcion de Always on Top (enviar Win+F2, PowerToys se encarga de always on top)
+[] Windows Cycler F6 (con timer): implementar nueva función "Don't steal focus"

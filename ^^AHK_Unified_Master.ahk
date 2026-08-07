@@ -887,6 +887,294 @@ CheckWinReleased() {
 }
 
 ; ============================================================================
+; Ventanas con timer  (lista aparte de la del ciclador Win+F4/F5)
+;   Win+F6        = guarda la ventana activa y abre una GUI para elegir en
+;                   cuánto tiempo reaparece (+ check "Always on top").
+;   Win+Shift+F6  = GUI de administración: ver los timers corriendo, sumar o
+;                   restar tiempo, abrir ya o eliminarlos.
+;   Al cumplirse el tiempo la ventana se restaura (si estaba minimizada) y se
+;   activa; el timer se consume (no se repite).
+; ============================================================================
+global gTimedWindows := []        ; items: Map("id","hwnd","title","due","aot")
+global gTimedNextId  := 1
+global gTimedGui     := ""        ; GUI de administración (Win+Shift+F6)
+global gTimedGuiLV   := ""
+global gTimedGuiHdr  := ""
+global gTimedGuiIds  := []        ; id del timer que corresponde a cada fila
+global gTimedLastMin := 5         ; últimos valores usados en la GUI de alta
+global gTimedLastSec := 0
+SetTimer(CheckTimedWindows, 500)
+
+#F6::SaveWindowWithTimer()
+#+F6::ShowTimedWindowsGui()
+
+SaveWindowWithTimer() {
+    hwnd := WinGetID("A")
+    if !hwnd {
+        TrayTip "Sin ventana activa", "No hay ninguna ventana para guardar.", 2
+        return
+    }
+    OpenTimedWindowGui(hwnd)
+}
+
+OpenTimedWindowGui(hwnd) {
+    global gTimedLastMin, gTimedLastSec
+    title := ""
+    try title := WinGetTitle("ahk_id " hwnd)
+    shown := (title = "") ? "(sin título)"
+        : (StrLen(title) > 64 ? SubStr(title, 1, 61) "..." : title)
+
+    tw := Gui("+AlwaysOnTop", "Guardar ventana con timer")
+    tw.SetFont("s10", "Segoe UI")
+    tw.Add("Text", "xm w390", "Ventana guardada:")
+    tw.SetFont("s10 bold")
+    tw.Add("Text", "xm w390", shown)
+    tw.SetFont("s10 norm")
+    ; Aviso (no bloqueante) si esta misma ventana ya tenía un timer pendiente.
+    if (existing := FindTimedWindowByHwnd(hwnd))
+        tw.Add("Text", "xm w390 cRed"
+            , "Ojo: ya tenía un timer corriendo (" FormatRemaining(existing["due"]) "). Se suma otro.")
+    tw.Add("Text", "xm", "Abrirla dentro de (minutos : segundos):")
+    minEdit := tw.Add("Edit", "xm w70 Number Limit4", gTimedLastMin)
+    tw.Add("Text", "x+8 yp+5 w12 Center", ":")
+    secEdit := tw.Add("Edit", "x+8 yp-5 w70 Number Limit2", gTimedLastSec)
+    aotChk := tw.Add("CheckBox", "xm", "Dejarla Always on top al abrirla")
+    startBtn := tw.Add("Button", "xm w120 Default", "Iniciar")
+    cancelBtn := tw.Add("Button", "x+10 w120", "Cancelar")
+    startBtn.OnEvent("Click", (*) => TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk))
+    cancelBtn.OnEvent("Click", (*) => tw.Destroy())
+    tw.OnEvent("Close", (*) => tw.Destroy())
+    tw.OnEvent("Escape", (*) => tw.Destroy())
+    tw.Show()
+    minEdit.Focus()
+}
+
+TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk) {
+    global gTimedWindows, gTimedNextId, gTimedLastMin, gTimedLastSec
+    totalSec := (minEdit.Value + 0) * 60 + (secEdit.Value + 0)
+    if (totalSec <= 0) {
+        MsgBox "Ingresá un tiempo mayor a 0.", "Timer de ventana", 48
+        return
+    }
+    if !WinExist("ahk_id " hwnd) {
+        MsgBox "La ventana ya no existe.", "Timer de ventana", 48
+        tw.Destroy()
+        return
+    }
+    gTimedLastMin := minEdit.Value + 0
+    gTimedLastSec := secEdit.Value + 0
+    gTimedWindows.Push(Map(
+        "id", gTimedNextId,
+        "hwnd", hwnd,
+        "title", (title = "" ? "(sin título)" : title),
+        "due", A_TickCount + totalSec * 1000,
+        "aot", aotChk.Value ? true : false))
+    gTimedNextId += 1
+    tw.Destroy()
+    TrayTip "Timer creado"
+        , "Se abre en " FormatSeconds(totalSec) "`n" title "`nTimers activos: " gTimedWindows.Length, 2
+    RebuildTimedWindowsGui()
+}
+
+; Chequeo periódico (cada 0,5 s): dispara los vencidos y descarta los timers
+; cuya ventana se cerró mientras tanto.
+CheckTimedWindows() {
+    global gTimedWindows
+    changed := false
+    i := gTimedWindows.Length
+    while (i >= 1) {
+        item := gTimedWindows[i]
+        if !WinExist("ahk_id " item["hwnd"]) {
+            gTimedWindows.RemoveAt(i)
+            changed := true
+            TrayTip "Timer cancelado", "Se cerró la ventana:`n" item["title"], 2
+        } else if (A_TickCount >= item["due"]) {
+            gTimedWindows.RemoveAt(i)
+            changed := true
+            OpenTimedWindow(item)
+        }
+        i -= 1
+    }
+    if changed
+        RebuildTimedWindowsGui()
+}
+
+OpenTimedWindow(item) {
+    hwnd := item["hwnd"]
+    if !WinExist("ahk_id " hwnd)
+        return
+    try {
+        if (WinGetMinMax("ahk_id " hwnd) = -1)
+            WinRestore "ahk_id " hwnd
+        WinActivate "ahk_id " hwnd
+        if item["aot"]
+            WinSetAlwaysOnTop true, "ahk_id " hwnd
+    }
+    TrayTip "Ventana abierta", item["title"], 2
+}
+
+FindTimedWindowByHwnd(hwnd) {
+    global gTimedWindows
+    for item in gTimedWindows {
+        if (item["hwnd"] = hwnd)
+            return item
+    }
+    return ""
+}
+
+FormatRemaining(due) {
+    ms := due - A_TickCount
+    return FormatSeconds(ms > 0 ? Ceil(ms / 1000) : 0)
+}
+
+FormatSeconds(totalSec) {
+    h := totalSec // 3600
+    m := Mod(totalSec // 60, 60)
+    s := Mod(totalSec, 60)
+    return h > 0 ? Format("{:d}:{:02d}:{:02d}", h, m, s) : Format("{:d}:{:02d}", m, s)
+}
+
+; ---- GUI de administración de timers (Win+Shift+F6) ----
+ShowTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedGuiHdr
+    if IsObject(gTimedGui) {
+        gTimedGui.Show()
+        RebuildTimedWindowsGui()
+        return
+    }
+    g := Gui("+AlwaysOnTop", "Timers de ventanas")
+    g.MarginX := 10
+    g.MarginY := 10
+    g.SetFont("s9", "Segoe UI")
+    gTimedGuiHdr := g.Add("Text", "xm w540", "")
+    lv := g.Add("ListView", "xm w540 r8 Grid -Multi", ["#", "Restante", "Ventana", "Top"])
+    lv.ModifyCol(1, 30)
+    lv.ModifyCol(2, 70)
+    lv.ModifyCol(3, 390)
+    lv.ModifyCol(4, 40)
+    add1Btn := g.Add("Button", "xm w76", "+1 min")
+    add5Btn := g.Add("Button", "x+6 w76", "+5 min")
+    sub1Btn := g.Add("Button", "x+6 w76", "-1 min")
+    openBtn := g.Add("Button", "x+6 w96", "Abrir ahora")
+    delBtn := g.Add("Button", "x+6 w86", "Eliminar")
+    closeBtn := g.Add("Button", "x+6 w76", "Cerrar")
+    add1Btn.OnEvent("Click", (*) => TimedGuiAddTime(60))
+    add5Btn.OnEvent("Click", (*) => TimedGuiAddTime(300))
+    sub1Btn.OnEvent("Click", (*) => TimedGuiAddTime(-60))
+    openBtn.OnEvent("Click", (*) => TimedGuiOpenNow())
+    delBtn.OnEvent("Click", (*) => TimedGuiDelete())
+    closeBtn.OnEvent("Click", (*) => CloseTimedWindowsGui())
+    lv.OnEvent("DoubleClick", (*) => TimedGuiOpenNow())
+    g.OnEvent("Close", (*) => CloseTimedWindowsGui())
+    g.OnEvent("Escape", (*) => CloseTimedWindowsGui())
+    gTimedGui := g
+    gTimedGuiLV := lv
+    RebuildTimedWindowsGui()
+    g.Show()
+    SetTimer(TickTimedWindowsGui, 500)   ; refresca la cuenta regresiva
+}
+
+CloseTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedGuiHdr, gTimedGuiIds
+    SetTimer(TickTimedWindowsGui, 0)
+    if IsObject(gTimedGui)
+        gTimedGui.Destroy()
+    gTimedGui := ""
+    gTimedGuiLV := ""
+    gTimedGuiHdr := ""
+    gTimedGuiIds := []
+}
+
+; Reconstruye la lista completa (cuando cambia la cantidad de timers).
+RebuildTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedGuiHdr, gTimedGuiIds, gTimedWindows
+    if !IsObject(gTimedGui)
+        return
+    sel := gTimedGuiLV.GetNext(0)
+    gTimedGuiLV.Opt("-Redraw")
+    gTimedGuiLV.Delete()
+    gTimedGuiIds := []
+    for i, item in gTimedWindows {
+        title := item["title"]
+        try {
+            live := WinGetTitle("ahk_id " item["hwnd"])
+            if (live != "")
+                title := live
+        }
+        gTimedGuiIds.Push(item["id"])
+        gTimedGuiLV.Add("", i, FormatRemaining(item["due"]), title, item["aot"] ? "Sí" : "")
+    }
+    gTimedGuiLV.Opt("+Redraw")
+    if (sel >= 1 && sel <= gTimedWindows.Length)
+        gTimedGuiLV.Modify(sel, "Select Focus")
+    gTimedGuiHdr.Text := gTimedWindows.Length
+        ? "Timers corriendo: " gTimedWindows.Length "   (Win+F6 agrega uno nuevo)"
+        : "No hay timers corriendo   (Win+F6 agrega uno nuevo)"
+}
+
+; Solo actualiza la columna "Restante" para no perder la selección ni parpadear.
+TickTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedWindows
+    if !IsObject(gTimedGui) {
+        SetTimer(TickTimedWindowsGui, 0)
+        return
+    }
+    if (gTimedGuiLV.GetCount() != gTimedWindows.Length) {
+        RebuildTimedWindowsGui()
+        return
+    }
+    for i, item in gTimedWindows
+        gTimedGuiLV.Modify(i, "Col2", FormatRemaining(item["due"]))
+}
+
+TimedGuiSelectedIndex() {
+    global gTimedGuiLV, gTimedGuiIds, gTimedWindows
+    if !IsObject(gTimedGuiLV)
+        return 0
+    row := gTimedGuiLV.GetNext(0)
+    if (row < 1 || row > gTimedGuiIds.Length) {
+        TrayTip "Timers de ventanas", "Seleccioná una fila de la lista primero.", 2
+        return 0
+    }
+    id := gTimedGuiIds[row]
+    for i, item in gTimedWindows {
+        if (item["id"] = id)
+            return i
+    }
+    return 0
+}
+
+TimedGuiAddTime(deltaSec) {
+    global gTimedWindows
+    if !(idx := TimedGuiSelectedIndex())
+        return
+    item := gTimedWindows[idx]
+    newDue := item["due"] + deltaSec * 1000
+    if (newDue < A_TickCount + 1000)     ; restando tiempo nunca lo mandamos al pasado
+        newDue := A_TickCount + 1000
+    item["due"] := newDue
+    TickTimedWindowsGui()
+}
+
+TimedGuiOpenNow() {
+    global gTimedWindows
+    if !(idx := TimedGuiSelectedIndex())
+        return
+    item := gTimedWindows.RemoveAt(idx)
+    OpenTimedWindow(item)
+    RebuildTimedWindowsGui()
+}
+
+TimedGuiDelete() {
+    global gTimedWindows
+    if !(idx := TimedGuiSelectedIndex())
+        return
+    item := gTimedWindows.RemoveAt(idx)
+    TrayTip "Timer eliminado", item["title"], 2
+    RebuildTimedWindowsGui()
+}
+
+; ============================================================================
 ; url_chrome.ahk
 ; ============================================================================
 ^!g::Run('"C:\Program Files\Google\Chrome\Application\chrome.exe" --new-window "https://docs.google.com/spreadsheets/d/1Nnjsc_sP1qFOMX8VNbibMK_C23MlZj2OMOvA_R3gsDQ/edit?gid=0#gid=0"')
