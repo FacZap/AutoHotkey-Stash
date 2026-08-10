@@ -166,6 +166,8 @@ BrightnessOSD() {
 ; ============================================================================
 !^F10::Send "{✔}"
 !^F9::Send "{↑}"
+; New behavior
+^NumpadDot::Send "{;}"
 
 ; ============================================================================
 ; dashes.ahk
@@ -1546,6 +1548,7 @@ global gHKSections := [
         { id: "slash",   type: "hotkey", hk: "+NumpadDiv", label: "Shift + Numpad /", desc: "Envía la barra invertida \" },
         { id: "check",   type: "hotkey", hk: "!^F10",      label: "Ctrl + Alt + F10", desc: "Envía el símbolo de check ✔" },
         { id: "arrowup", type: "hotkey", hk: "!^F9",       label: "Ctrl + Alt + F9",  desc: "Envía la flecha arriba ↑" },
+        { id: "semicolon", type: "hotkey", hk: "^NumpadDot", label: "Ctrl + Numpad .", desc: "Envía un punto y coma `;" },
         { id: "emdash",  type: "hotkey", hk: "^NumpadSub", label: "Ctrl + Numpad -",  desc: "Envía un guion largo — (em dash)" },
         { id: "endash",  type: "hotkey", hk: "!NumpadSub", label: "Alt + Numpad -",   desc: "Envía un guion medio – (en dash)" } ] },
 
