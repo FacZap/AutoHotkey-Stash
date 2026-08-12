@@ -145,6 +145,13 @@
     <tr><td><span class="scope">(automático) por inactividad física</span></td><td class="desc">Si transcurren los minutos de inactividad configurados sin input físico del usuario, envía <code class="inline">Win+Alt+S</code> (una sola vez por período inactivo). Usa <code class="inline">A_TimeIdlePhysical</code>, por lo que ignora el input simulado por el propio script. <code class="inline">0</code> = desactivado.</td></tr>
   </table>
 
+  <h2>Timer → Play/Pausa multimedia <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Alt + U</span>, luego <span class="key">A</span> <span class="scope">(dentro de 2&nbsp;s)</span></td><td class="desc">Abre una ventana para configurar un temporizador en minutos:segundos. "Iniciar" arma el timer; "Cancelar" (o Esc) cierra sin tocar nada. Recuerda los últimos valores usados. Iniciar con <code class="inline">0:00</code> cancela el timer pendiente. La <span class="key">A</span> vale con o sin modificadores apretados, así que se puede seguir sosteniendo Win+Alt desde el acorde anterior.</td></tr>
+    <tr><td><span class="scope">(automático) al cumplirse la cuenta regresiva</span></td><td class="desc">Envía la tecla multimedia <code class="inline">Media_Play_Pause</code> una vez, al agotarse el tiempo configurado — lo mismo que hace <span class="key">Ctrl + Alt + A</span> (ver <em>Multimedia y volumen</em>), así que sirve como temporizador para cortar la música.</td></tr>
+  </table>
+
   <h2>Multimedia y volumen <span class="src">pauseplay.ahk</span></h2>
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>

@@ -411,35 +411,64 @@ IdleCheck2() {
 ;   Win+Alt+U  y luego  I  (< 1 s)  -> abre la GUI del timer
 ;   Al cumplirse el tiempo elegido          -> envía Win+Alt+S
 ;   Tras X min de inactividad física (GUI)  -> envía Win+Alt+S (0 = off)
+;
+;   Win+Alt+U  y luego  A  (< 2 s)  -> abre la GUI del timer -> Play/Pausa
+;   (esa GUI y su disparo viven en la sección "Timer -> Play/Pausa", más abajo)
 ; ============================================================================
 global timerMinutes := 0          ; último valor de minutos usado en la GUI
 global timerSeconds := 30         ; último valor de segundos usado en la GUI
 global inactivityMinutes := 10    ; auto-envío por inactividad; 0 = desactivado
 global inactivityFired := false   ; evita reenvíos dentro del mismo período inactivo
 global waitingForSTimerKey := false ; true tras Win+Alt+U, esperando la "I" (< 1 s)
+global waitingForATimerKey := false ; true tras Win+Alt+U, esperando la "A" (< 2 s)
 SetTimer(CheckInactivity, 1000)
 
 #!u::
 {
-    global waitingForSTimerKey
+    global waitingForSTimerKey, waitingForATimerKey
     waitingForSTimerKey := true
+    waitingForATimerKey := true
     SetTimer(ResetSTimerWait, -1000)   ; la "I" debe llegar en < 1 s
+    SetTimer(ResetATimerWait, -2000)   ; la "A" debe llegar en < 2 s
 }
 
 ; La "I" solo es hotkey durante esa ventana de 1 s (con o sin modificadores).
 #HotIf waitingForSTimerKey
 *i::
 {
-    global waitingForSTimerKey
-    waitingForSTimerKey := false
-    SetTimer(ResetSTimerWait, 0)
+    ClearTimerChordWait()
     OpenSTimerGui()
+}
+#HotIf
+
+; La "A" solo es hotkey durante su ventana de 2 s (con o sin modificadores:
+; es normal seguir apretando Win+Alt al llegar de Win+Alt+U).
+#HotIf waitingForATimerKey
+*a::
+{
+    ClearTimerChordWait()
+    OpenATimerGui()
 }
 #HotIf
 
 ResetSTimerWait() {
     global waitingForSTimerKey
     waitingForSTimerKey := false
+}
+
+ResetATimerWait() {
+    global waitingForATimerKey
+    waitingForATimerKey := false
+}
+
+; Al aceptar cualquiera de las dos teclas se cierran las dos ventanas, para que
+; la que quede viva no abra además la otra GUI.
+ClearTimerChordWait() {
+    global waitingForSTimerKey, waitingForATimerKey
+    waitingForSTimerKey := false
+    waitingForATimerKey := false
+    SetTimer(ResetSTimerWait, 0)
+    SetTimer(ResetATimerWait, 0)
 }
 
 OpenSTimerGui() {
@@ -512,6 +541,58 @@ CheckInactivity() {
     } else {
         inactivityFired := false             ; hubo actividad: re-armar
     }
+}
+
+; ============================================================================
+; Timer -> Play/Pausa multimedia
+;   Win+Alt+U  y luego  A  (< 2 s)  -> abre esta GUI (el acorde se arma en la
+;   sección "Timer -> Win+Alt+S", que es la dueña del hotkey Win+Alt+U)
+;   Al cumplirse el tiempo elegido  -> envía Media_Play_Pause
+;   Iniciar con 0:00                -> cancela el timer pendiente
+; ============================================================================
+global aTimerMinutes := 0         ; último valor de minutos usado en la GUI
+global aTimerSeconds := 30        ; último valor de segundos usado en la GUI
+
+OpenATimerGui() {
+    global aTimerMinutes, aTimerSeconds
+    atg := Gui("+AlwaysOnTop", "Timer -> Play/Pausa")
+    atg.SetFont("s10", "Segoe UI")
+    atg.Add("Text", "xm", "Tiempo del timer (minutos : segundos):")
+    minEdit := atg.Add("Edit", "xm w70 Number Limit3", aTimerMinutes)
+    atg.Add("Text", "x+8 yp+5 w12 Center", ":")
+    secEdit := atg.Add("Edit", "x+8 yp-5 w70 Number Limit2", aTimerSeconds)
+    startBtn := atg.Add("Button", "xm w120 Default", "Iniciar")
+    cancelBtn := atg.Add("Button", "x+10 w120", "Cancelar")
+    startBtn.OnEvent("Click", (*) => ATimerStart(atg, minEdit, secEdit))
+    cancelBtn.OnEvent("Click", (*) => atg.Destroy())
+    atg.OnEvent("Close", (*) => atg.Destroy())
+    atg.OnEvent("Escape", (*) => atg.Destroy())
+    atg.Show()
+    minEdit.Focus()
+}
+
+ATimerStart(atg, minEdit, secEdit) {
+    global aTimerMinutes, aTimerSeconds
+    ; Guardar valores para la próxima apertura (campo vacío = 0).
+    aTimerMinutes := (minEdit.Value = "") ? 0 : minEdit.Value + 0
+    aTimerSeconds := (secEdit.Value = "") ? 0 : secEdit.Value + 0
+    atg.Destroy()
+    totalMs := (aTimerMinutes * 60 + aTimerSeconds) * 1000
+    if (totalMs > 0) {
+        SetTimer(FirePlayPause, -totalMs)    ; one-shot: dispara al cumplirse
+        ToolTip "Timer: " aTimerMinutes " min " aTimerSeconds " s -> Play/Pausa"
+    } else {
+        SetTimer(FirePlayPause, 0)           ; 0:00 -> cancela lo que hubiera
+        ToolTip "Timer Play/Pausa cancelado (0:00)"
+    }
+    SetTimer () => ToolTip(), -1500
+}
+
+FirePlayPause() {
+    SetTimer(FirePlayPause, 0)
+    ; Se manda la tecla multimedia directamente, igual que hace ^!A. Nadie
+    ; hookea Media_Play_Pause en este script, así que no hace falta SendLevel.
+    Send "{Media_Play_Pause}"
 }
 
 ; ============================================================================
@@ -1540,7 +1621,7 @@ global gHKSections := [
         { id: "kyyy", type: "hotstring", hk: ":R*?:kyyy", label: "kyyy", desc: "Fecha y hora dd-MM-yy HH:mm" },
         { id: "khhh", type: "hotstring", hk: ":R*?:khhh", label: "khhh", desc: "Hora HH:mm" } ] },
 
-    { id: "chord", title: "Texto rápido (chord)", src: "", items: [
+    { id: "chord", title: "Texto rápido (chord)", src: "Nuevo", items: [
         { id: "endflag", type: "hotkey", hk: "^!5", label: "Ctrl + Alt + 5, luego E",
           desc: "Escribe el texto literal %%end flag (la E debe llegar en menos de 2 s)" } ] },
 
@@ -1596,6 +1677,10 @@ global gHKSections := [
         { id: "voldown",    type: "hotkey", hk: "^!NumpadSub",     label: "Ctrl + Alt + Numpad -", desc: "Baja el volumen" },
         { id: "volup2",     type: "hotkey", hk: "^!Numpad8",       label: "Ctrl + Alt + Numpad 8", desc: "Sube el volumen" },
         { id: "voldown2",   type: "hotkey", hk: "^!Numpad2",       label: "Ctrl + Alt + Numpad 2", desc: "Baja el volumen" } ] },
+
+    { id: "timer_media", title: "Timer para PausePlayMedia", src: "Nuevo", items: [
+	{ id: "timer_playpause", type: "hotkey", hk:"#!u", label: "Win + Alt + U, luego A",
+	  desc: "Abre la ventana del temporizador de pausa/reanudar (la A debe llegar en menos de 2 s)" } ] },
 
     { id: "tabsel", title: "Tabulación y selección", src: "right_tab.ahk · selectcellcontent.ahk · volume.ahk", items: [
         { id: "tab",     type: "hotkey", hk: "RCtrl & Numpad5", label: "Ctrl der + Numpad 5", desc: "Envía Tab" },

@@ -15,3 +15,4 @@ To Do / Pendientes:
 [] Windows Cycler F6 (con timer): minimizar ventana luego de iniciar un timer
 [] Windows Cycler F6 (con timer): implementar funcion de Always on Top (enviar Win+F2, PowerToys se encarga de always on top)
 [] Windows Cycler F6 (con timer): implementar nueva función "Don't steal focus"
+[] Hotkeys Manager: separar chord #Alt UI de UA
