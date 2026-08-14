@@ -695,7 +695,8 @@ OpenProgramIniFile := A_ScriptDir "\open-program-GUI.ini"
 
 OpenProgramPrograms := Map(
     "Paint", "C:\Windows\System32\mspaint.exe",
-    "Notepad++", "C:\Program Files\Notepad++\notepad++.exe"
+    "Notepad++", "C:\Program Files\Notepad++\notepad++.exe",
+    "OBS", "C:\Program Files\obs-studio\bin\64bit\obs64.exe"
 )
 
 for name, defaultPath in OpenProgramPrograms
@@ -739,8 +740,11 @@ LaunchOpenProgram(name, gui) {
         MsgBox("Unable to find " name " at:`n" path)
         return
     }
+    ; Lanzar con el directorio del .exe como working dir: algunos programas
+    ; (OBS) buscan sus datos -locale, plugins- relativos al directorio actual.
+    SplitPath(path, , &exeDir)
     try
-        Run(path)
+        Run(path, exeDir)
     catch as err {
         MsgBox("Failed to launch " name ":`n" err.Message)
         return
@@ -1090,8 +1094,8 @@ OpenTimedWindow(item) {
         if (WinGetMinMax("ahk_id " hwnd) = -1)
             WinRestore "ahk_id " hwnd
         WinActivate "ahk_id " hwnd
-        if item["aot"]
-            WinSetAlwaysOnTop true, "ahk_id " hwnd
+        ; if item["aot"]
+        ;    WinSetAlwaysOnTop true, "ahk_id " hwnd
     }
     TrayTip "Ventana abierta", item["title"], 2
 }

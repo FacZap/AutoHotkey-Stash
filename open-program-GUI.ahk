@@ -5,7 +5,8 @@ IniFile := A_ScriptDir "\open-program-GUI.ini"
 
 Programs := Map(
     "Paint", "C:\Windows\System32\mspaint.exe",
-    "Notepad++", "C:\Program Files\Notepad++\notepad++.exe"
+    "Notepad++", "C:\Program Files\Notepad++\notepad++.exe",
+    "OBS", "C:\Program Files\obs-studio\bin\64bit\obs64.exe"
 )
 
 ; Load any saved path overrides
@@ -50,8 +51,11 @@ LaunchProgram(name, gui) {
         MsgBox("Unable to find " name " at:`n" path)
         return
     }
+    ; Lanzar con el directorio del .exe como working dir: algunos programas
+    ; (OBS) buscan sus datos -locale, plugins- relativos al directorio actual.
+    SplitPath(path, , &exeDir)
     try
-        Run(path)
+        Run(path, exeDir)
     catch as err {
         MsgBox("Failed to launch " name ":`n" err.Message)
         return
