@@ -17,3 +17,4 @@ To Do / Pendientes:
 [] Windows Cycler F6 (con timer): implementar nueva función "Don't steal focus"
 [] Hotkeys Manager: separar chord #Alt UI de UA
 [] Traymond Timer: add GUI showing timer
+[] Analyze .ini open program path and hardcoded paths logic
