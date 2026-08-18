@@ -696,7 +696,8 @@ OpenProgramIniFile := A_ScriptDir "\open-program-GUI.ini"
 OpenProgramPrograms := Map(
     "Paint", "C:\Windows\System32\mspaint.exe",
     "Notepad++", "C:\Program Files\Notepad++\notepad++.exe",
-    "OBS", "C:\Program Files\obs-studio\bin\64bit\obs64.exe"
+    "OBS", "C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+    "SpeedCrunch", "C:\Program Files (x86)\SpeedCrunch\speedcrunch.exe"
 )
 
 for name, defaultPath in OpenProgramPrograms
