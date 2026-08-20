@@ -35,6 +35,7 @@ use `FindWindowEx(HWND_MESSAGE, ...)`.
 | File | What it's for |
 |---|---|
 | `traymond-timer.ahk` | The main script. Resident timer + one-shot CLI. |
+| `restore-at-1640.ahk` | Auxiliary resident script. Restores everything at 16:40 daily — and nothing else. |
 | `restore-all.bat` | Fire-and-forget "restore everything" for Task Scheduler. |
 | `restore-all.ps1` | Same thing with **no AutoHotkey needed** at all. |
 
@@ -43,28 +44,38 @@ use `FindWindowEx(HWND_MESSAGE, ...)`.
 Run `traymond-timer.ahk`. Edit the CONFIG block at the top to pick a mode:
 
 - **`PerWindow`** (default) — every window you hide comes back on its own
-  countdown, `RestoreAfterMinutes` later. Hide three things at different times
-  and each returns on its own schedule.
+  countdown, chosen at the prompt when you hide it. Hide three things at
+  different times and each returns on its own schedule.
 - **`Interval`** — restore *all* hidden windows every `IntervalMinutes`.
 - **`DailyTime`** — restore *all* hidden windows once a day at `DailyTime`.
 
-Whichever mode you pick, `Win+Alt+Shift+Z` lets you set a one-off time for a
-single window.
+`RestoreAfterMinutes` is what the prompt starts pre-filled with. The individual
+countdown works in every mode, so you can run `DailyTime` for the general case
+and still say "but bring *this* one back in 10 minutes".
 
 Hotkeys (all configurable, set to `""` to disable):
 
 | Key | Action |
 |---|---|
-| `Win+Shift+Z` | Hide window, use the default countdown |
-| `Win+Alt+Shift+Z` | Hide window, **ask** how long — see below |
+| `Win+Shift+Z` | Hide window and **ask** how long — see below |
+| `Win+Alt+Shift+Z` | Hide window with **no countdown** — plain Traymond |
 | `Win+Shift+R` | Restore everything now |
 | `Win+Shift+C` | Cancel pending countdowns, leave windows hidden |
 
+`Win+Alt+Shift+Z` is the escape hatch: it hides the window and leaves it hidden,
+exactly as Traymond does on its own, for things you want out of the way with no
+timer attached. (`Interval` and `DailyTime` modes still sweep those up on their
+schedule — only the individual countdown is skipped.)
+
+There is also an optional third key, unbound by default: set `HotkeyDefaultHide`
+to something like `"^#+z"` to hide and silently apply `RestoreAfterMinutes`
+without being asked.
+
 ### Setting a time by hand
 
-`Win+Alt+Shift+Z` hides the window and then opens a small prompt for the time,
+`Win+Shift+Z` hides the window and then opens a small prompt for the time,
 pre-filled with `RestoreAfterMinutes` and selected, so you can just type over it
-and press Enter. It accepts:
+and press Enter — or press Enter straight away to accept the default. It accepts:
 
 | Typed | Means |
 |---|---|
@@ -79,11 +90,6 @@ Anything it can't read gets a "try again" message rather than a silently wrong
 countdown. **Cancel un-hides the window straight away**, so the prompt is never a
 trap — nothing is stranded in the tray if you change your mind.
 
-This hotkey works in **all three modes**, not just `PerWindow`: a window given a
-time by hand always gets its own individual countdown. So you can run in
-`DailyTime` mode for the general case and still say "but bring *this* one back in
-10 minutes".
-
 The window is hidden *before* the prompt appears, deliberately. Traymond can only
 hide whatever is in the foreground, so if the prompt took the foreground first,
 handing it back to the target window afterwards would be at the mercy of Windows'
@@ -95,22 +101,54 @@ what's queued and how long is left), and *Cancel all countdowns*.
 
 ### About Win+Shift+Z
 
-`PerWindow` mode needs to know *which* window was hidden and *when*, so the
-script deliberately shadows Traymond's own `Win+Shift+Z`: it sees the keypress
-first (via a keyboard hook, which takes precedence over Traymond's
-`RegisterHotKey`), notes the foreground window, then forwards the hide to
-Traymond. Hiding behaves exactly as before.
+A countdown needs to know *which* window was hidden and *when*, so the script
+deliberately shadows Traymond's own `Win+Shift+Z`: it sees the keypress first
+(via a keyboard hook, which takes precedence over Traymond's `RegisterHotKey`),
+notes the foreground window, then forwards the hide to Traymond. Hiding behaves
+exactly as before — you just get asked for a time as well.
 
-If you'd rather leave Traymond's hotkey alone, set `HotkeyHide := "#+x"` (or
-anything else). Windows hidden with Traymond's own `Win+Shift+Z` then won't get
-an individual countdown — but `Interval` and `DailyTime` modes still catch them,
-since those restore everything regardless of how it was hidden.
+If you'd rather leave Traymond's hotkey alone, set `HotkeyPromptHide := "#+x"`
+(or anything else). Windows hidden with Traymond's own `Win+Shift+Z` then won't
+get an individual countdown — but `Interval` and `DailyTime` modes still catch
+them, since those restore everything regardless of how it was hidden.
 
 ### Start with Windows
 
 Press `Win+R`, run `shell:startup`, and drop a shortcut to `traymond-timer.ahk`
 in the folder that opens. (Traymond itself needs to be started too — the script
 will tell you if it isn't running.)
+
+## Auxiliary script: daily restore at 16:40
+
+`restore-at-1640.ahk` is a deliberately tiny companion. Its **only** function is
+to ask Traymond to restore every hidden window at **16:40**, every day. The time
+is hardcoded — it's the `RestoreAt` line at the top of the file.
+
+It registers **no hotkeys at all**, so it cannot collide with
+`traymond-timer.ahk`, with `^^AHK_Unified_Master.ahk`, or with Traymond's own
+`Win+Shift+Z`. Run it either way:
+
+- **Alongside `traymond-timer.ahk`** — keep the main script in `PerWindow` mode
+  for individual countdowns, and let this one guarantee a daily sweep of
+  anything you hid without a timer, or hid and forgot about.
+- **On its own** — if one daily sweep is all you want, this is a much smaller
+  thing to keep resident than the full script. (Smaller still: `restore-all.bat`
+  or `restore-all.ps1` on a Task Scheduler trigger, below, which keeps nothing
+  resident at all.)
+
+Two behaviours worth knowing:
+
+- It compares **timestamps** rather than matching `HH:mm` exactly, so a PC that
+  was asleep or suspended through 16:40 still gets its sweep on the next check
+  after waking — within 20 seconds — instead of silently missing the day. (The
+  main script's `DailyTime` mode matches the clock string, so it can miss.)
+- Starting the script *after* 16:40 does **not** trigger a sweep on the spot —
+  that moment belonged to a day this instance wasn't around for. It arms for
+  tomorrow and says so in a tray balloon.
+
+Hovering its tray icon shows `Traymond restore-all daily at 16:40`, which is how
+you tell it apart from the main script's icon. Drop a shortcut in
+`shell:startup` (see above) to have it running every day.
 
 ## Scheduled use, no resident script
 

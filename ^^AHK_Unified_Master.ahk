@@ -54,6 +54,7 @@ global idleThresholdMs := idleMinutes * 60 * 1000
 ^!W::Send "{Up}"
 ^!S::Send "{Down}"
 <^CapsLock::Send "{Enter}"   ; Ctrl izquierdo + Bloq Mayús -> Enter (anula el toggle de Mayús)
++Delete::Send "{Backspace}"   ; Shift+Supr -> Backspace
 
 ; ============================================================================
 ; autodate.ahk
@@ -2014,23 +2015,74 @@ Refresh()
 ~!Space::Reload
 #HotIf
 
+; AutoHotkey publishes exactly one piece of run state to other processes: while
+; a script is suspended, the "Suspend Hotkeys" item in its own File menu carries
+; a check mark. This holds for both v1 and v2 scripts.
+IsSuspended(hWnd) {
+    static ID_FILE_SUSPEND := 65404, MF_BYCOMMAND := 0, MF_CHECKED := 0x8
+    if !(hMenu := DllCall("GetMenu", "Ptr", hWnd, "Ptr"))
+        return false
+    state := DllCall("GetMenuState", "Ptr", hMenu, "UInt", ID_FILE_SUSPEND, "UInt", MF_BYCOMMAND, "UInt")
+    return (state != 0xFFFFFFFF) && (state & MF_CHECKED)
+}
+
+; Pause has no such indicator - AutoHotkey ticks it on the tray menu only, and
+; another process cannot read that menu - so the Manager remembers which scripts
+; it paused itself. Keyed by window handle, which changes when a script is
+; reloaded or restarted (both of which start it unpaused); PrunePaused() drops
+; handles that are gone. A script paused from its own tray menu or by its own
+; hotkey is invisible to us and still shows as [Running].
+PausedScripts() {
+    static paused := Map()
+    return paused
+}
+
+IsPaused(hWnd) {
+    return PausedScripts().Has(Integer(hWnd))
+}
+
+TogglePaused(hWnd) {
+    paused := PausedScripts(), hWnd := Integer(hWnd)
+    if paused.Has(hWnd)
+        paused.Delete(hWnd)
+    else
+        paused[hWnd] := true
+}
+
+ClearPaused(hWnd) {
+    paused := PausedScripts(), hWnd := Integer(hWnd)
+    if paused.Has(hWnd)
+        paused.Delete(hWnd)
+}
+
+PrunePaused() {
+    paused := PausedScripts()
+    DetectHiddenWindows(true)
+    for hWnd in paused.Clone()
+        if !WinExist("ahk_id " hWnd)
+            paused.Delete(hWnd)
+}
+
 Refresh() {
     DetectHiddenWindows(true)
+    PrunePaused()
     scriptList := []
     for script in WinGetList("ahk_class AutoHotkey") {
         try {
             title := WinGetTitle("ahk_id " script)
             SplitPath(title, &scriptName)
             if !(scriptName ~= "\.exe$") {
-                state := "[Running]"
-                text := WinGetText("ahk_id " script)
-                style := WinGetStyle("ahk_id " script)
+                paused := IsPaused(script)
+                suspended := IsSuspended(script)
 
-                if InStr(text, "Paused") {
+                if (paused && suspended)
+                    state := "[Paused+Suspended]"
+                else if (paused)
                     state := "[Paused]"
-                } else if (style & 0x20000000) {
+                else if (suspended)
                     state := "[Suspended]"
-                }
+                else
+                    state := "[Running]"
 
                 scriptList.Push(scriptName " " state " (" script ")")
             }
@@ -2092,58 +2144,84 @@ OpenMacroRecorder() {
     Run('"' A_AhkPath '" "' macroRecorderPath '"')
 }
 
-SendAHKMessage(scriptPath, message) {
+; Actions target the exact window handle the list row was built from. Resolving
+; by title instead (SetTitleMatchMode 2 + WinExist) returns the FIRST window
+; whose title matches, so with two instances of one script running under
+; #SingleInstance Off every action landed on instance #1: "Kill All" left the
+; second one alive and "Pause All" toggled the first one twice.
+PostToScript(hWnd, message) {
     DetectHiddenWindows(true)
-    SetTitleMatchMode(2)
-    if (hWnd := WinExist(scriptPath " ahk_class AutoHotkey")) {
+    try {
         PostMessage(0x111, message, 0, , "ahk_id " hWnd)
-        return true
+    } catch {
+        return false
     }
-    return false
+    return true
+}
+
+; Killing is asynchronous (PostMessage), so the script's window is still
+; listed for a moment after the exit message is sent. Wait for it to go
+; away before refreshing, otherwise the dead script reappears in the list.
+WaitScriptClosed(hWnd, timeout := 3) {
+    DetectHiddenWindows(true)
+    WinWaitClose("ahk_id " hWnd, , timeout)
+    DetectHiddenWindows(false)
 }
 
 ReloadScript() {
     if (scriptInfo := GetSelectedScriptInfo()) {
-        SendAHKMessage(scriptInfo.path, 65400)
+        if PostToScript(scriptInfo.id, 65400)
+            ClearPaused(scriptInfo.id)
     }
     Refresh()
 }
 
 SuspendScript() {
     if (scriptInfo := GetSelectedScriptInfo()) {
-        SendAHKMessage(scriptInfo.path, 65404)
+        PostToScript(scriptInfo.id, 65404)
     }
     Refresh()
 }
 
 PauseScript() {
     if (scriptInfo := GetSelectedScriptInfo()) {
-        SendAHKMessage(scriptInfo.path, 65403)
+        if PostToScript(scriptInfo.id, 65403)
+            TogglePaused(scriptInfo.id)
     }
     Refresh()
 }
 
 ExitScript() {
     if (scriptInfo := GetSelectedScriptInfo()) {
-        SendAHKMessage(scriptInfo.path, 65405)
+        if PostToScript(scriptInfo.id, 65405)
+            WaitScriptClosed(scriptInfo.id)
     }
     Refresh()
 }
 
 ManageAllScripts(action) {
     DetectHiddenWindows(true)
+    killed := []
     for script in WinGetList("ahk_class AutoHotkey") {
         winTitle := WinGetTitle("ahk_id " script)
         scriptPath := RegExReplace(winTitle, " - AutoHotkey v[^\s]+$")
         if (A_ScriptFullPath != scriptPath) {
             switch action {
-                case "Reload": SendAHKMessage(scriptPath, 65400)
-                case "Suspend": SendAHKMessage(scriptPath, 65404)
-                case "Pause": SendAHKMessage(scriptPath, 65403)
-                case "Kill": SendAHKMessage(scriptPath, 65405)
+                case "Reload":
+                    if PostToScript(script, 65400)
+                        ClearPaused(script)
+                case "Suspend": PostToScript(script, 65404)
+                case "Pause":
+                    if PostToScript(script, 65403)
+                        TogglePaused(script)
+                case "Kill":
+                    if PostToScript(script, 65405)
+                        killed.Push(script)
             }
         }
     }
+    for hWnd in killed
+        WinWaitClose("ahk_id " hWnd, , 3)
     DetectHiddenWindows(false)
     Refresh()
 }

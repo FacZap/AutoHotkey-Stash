@@ -34,13 +34,15 @@ DetectHiddenWindows, On
 
 ;=============================== CONFIG =======================================
 
-; "PerWindow" - each window you hide comes back on its own countdown
-;               (RestoreAfterMinutes), individually.
+; "PerWindow" - each window gets its own countdown, chosen when you hide it.
 ; "Interval"  - restore ALL hidden windows every IntervalMinutes.
 ; "DailyTime" - restore ALL hidden windows once a day at DailyTime.
+;
+; Windows hidden with HotkeyPlainHide never get an individual countdown in any
+; mode - but Interval / DailyTime still sweep them up along with everything else.
 Mode := "PerWindow"
 
-RestoreAfterMinutes := 25        ; PerWindow mode
+RestoreAfterMinutes := 25        ; what the prompt starts pre-filled with
 IntervalMinutes     := 60        ; Interval mode
 DailyTime           := "17:30"   ; DailyTime mode, 24h HH:mm
 
@@ -48,14 +50,17 @@ ShowNotifications := true        ; tray balloon on hide/restore
 
 ; Hotkeys ( # Win   + Shift   ^ Ctrl   ! Alt ).  Set to "" to disable one.
 ;
-; HotkeyHide intentionally shadows Traymond's own Win+Shift+Z: this script sees
-; the keypress first, notes which window is about to disappear, then forwards
-; the hide to Traymond. Hiding keeps working as before - the only difference is
-; that we now know what was hidden and when, which is what makes a per-window
-; countdown possible. Change it if you would rather keep the two separate.
-HotkeyHide         := "#+z"
-HotkeyCustomHide   := "#!+z"     ; hide, but ask for the time instead of using
-                                 ;   RestoreAfterMinutes. Works in every mode.
+; HotkeyPromptHide intentionally shadows Traymond's own Win+Shift+Z: this script
+; sees the keypress first, notes which window is about to disappear, then
+; forwards the hide to Traymond. Hiding keeps working as before - the only
+; difference is that we now know what was hidden and when, which is what makes
+; a countdown possible. Change it if you would rather keep the two separate.
+HotkeyPromptHide   := "#+z"      ; hide, then ask how long. Works in every mode.
+HotkeyPlainHide    := "#!+z"     ; hide with no countdown and no prompt - i.e.
+                                 ;   exactly what Traymond does on its own.
+HotkeyDefaultHide  := ""         ; optional: hide and silently use
+                                 ;   RestoreAfterMinutes without asking. Unbound
+                                 ;   by default - set to e.g. "^#+z" to use it.
 HotkeyRestoreAll   := "#+r"      ; restore everything right now
 HotkeyCancelTimers := "#+c"      ; forget pending countdowns, leave windows hidden
 
@@ -86,10 +91,12 @@ if (A_LastError = 183) {         ; ERROR_ALREADY_EXISTS
     ExitApp
 }
 
-if (HotkeyHide != "")
-    Hotkey, $%HotkeyHide%, DoTimedHide      ; $ forces the keyboard hook so we
-if (HotkeyCustomHide != "")                 ;   win over Traymond's RegisterHotKey
-    Hotkey, $%HotkeyCustomHide%, DoCustomTimeHide
+if (HotkeyPromptHide != "")
+    Hotkey, $%HotkeyPromptHide%, DoCustomTimeHide   ; $ forces the keyboard hook
+if (HotkeyPlainHide != "")                          ;   so we win over Traymond's
+    Hotkey, $%HotkeyPlainHide%, DoPlainHide         ;   own RegisterHotKey
+if (HotkeyDefaultHide != "")
+    Hotkey, $%HotkeyDefaultHide%, DoTimedHide
 if (HotkeyRestoreAll != "")
     Hotkey, %HotkeyRestoreAll%, DoRestoreAllNow
 if (HotkeyCancelTimers != "")
@@ -237,6 +244,20 @@ return
 
 ;=============================== ACTIONS ======================================
 
+; Plain Traymond behaviour: hide it, and leave it hidden. No countdown, no
+; prompt. Interval / DailyTime modes will still sweep it up on their schedule.
+DoPlainHide:
+    hidden := TraymondHide()
+    if (!hidden) {
+        Notify("Nothing to hide (or Traymond is not running)")
+        return
+    }
+    WinGetTitle, hiddenTitle, ahk_id %hidden%
+    Notify("Hidden: " . Shorten(hiddenTitle) . "`nNo countdown set")
+return
+
+; Optional (HotkeyDefaultHide): hide and start the default countdown without
+; asking. Same as answering the prompt with whatever RestoreAfterMinutes is.
 DoTimedHide:
     hidden := TraymondHide()
     if (!hidden) {
@@ -244,13 +265,9 @@ DoTimedHide:
         return
     }
     WinGetTitle, hiddenTitle, ahk_id %hidden%
-    if (Mode = "PerWindow") {
-        Pending[hidden] := A_TickCount + (RestoreAfterMinutes * 60000)
-        PendingTitle[hidden] := hiddenTitle
-        Notify("Hidden: " . Shorten(hiddenTitle) . "`nBack in " . RestoreAfterMinutes . " min")
-    } else {
-        Notify("Hidden: " . Shorten(hiddenTitle))
-    }
+    Pending[hidden] := A_TickCount + (RestoreAfterMinutes * 60000)
+    PendingTitle[hidden] := hiddenTitle
+    Notify("Hidden: " . Shorten(hiddenTitle) . "`nBack in " . FormatMinutes(RestoreAfterMinutes))
 return
 
 ; Hide the window first, then ask for the time. Doing it in this order means we
