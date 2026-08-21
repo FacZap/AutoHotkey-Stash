@@ -31,7 +31,7 @@ AHK v1 and v2 cannot run in the same process. The master was created to consolid
 | Category | Example scripts |
 |---|---|
 | Keyboard/input remapping | `arrows-keystrokes`, `dashes`, `backwards-slash`, `right_tab`, `checkmark` |
-| Text automation | `autodate` (hotstrings like `k+ddd`), `ConvertCase`, `createTXT`, `logger` |
+| Text automation | `autodate` (hotstrings like `k+ddd`), `ConvertCase`, `createTXT`, `logger`, `ClipboardOCR` |
 | Window management | `Cycler_Windows_v3`, `move_resize`, `resize`, `kill_all` |
 | System control | `brightness` (WMI), `volume`, `mute`, `pauseplay` |
 | App launchers | `find_wise_reminder`, `open_hourglass`, `url_chrome` |
@@ -60,6 +60,15 @@ The master's Manager GUI launches it via `OpenMacroRecorder()`.
   `Ctrl+Alt+Esc` panic stop. `Ctrl+Alt+F7/F9/F10` were unavailable — the master
   already uses them.
 - Full usage: `README_MacroRecorder.md`. Remaining work: `TODO_MacroRecorder.md`.
+
+### Clipboard OCR
+
+`ClipboardOCR.ahk` (v2, standalone) OCRs the image in the clipboard with `Ctrl+Alt+O`
+and shows the text in an editable GUI (copy / save .txt / save .png / discard).
+Both save buttons write timestamped files to the Windows Downloads folder.
+
+It depends on `OCR.ahk`, a vendored copy of Descolada's wrapper around the
+Windows.Media.Ocr UWP API — no external OCR engine or install needed.
 
 ### External utilities (bundled)
 
