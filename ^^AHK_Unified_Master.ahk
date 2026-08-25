@@ -169,6 +169,7 @@ BrightnessOSD() {
 !^F9::Send "{↑}"
 ; New behavior
 ^NumpadDot::Send "{;}"
+!NumpadDot::Send "{:}"
 
 ; ============================================================================
 ; dashes.ahk
