@@ -670,8 +670,6 @@ RCtrl & Numpad5::
             SendInput "{Enter}"
             Sleep 100
             Click clickX, clickY
-            Sleep 1000
-            Click clickXX, clickYY
         } else
             WinActivate "ahk_exe WiseReminder.exe"
     } else
