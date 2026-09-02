@@ -1614,7 +1614,8 @@ global gHKSections := [
     { id: "arrows", title: "Teclado y navegación", src: "arrows-keystrokes.ahk", items: [
         { id: "up",    type: "hotkey", hk: "^!W",        label: "Ctrl + Alt + W",        desc: "Envía Flecha Arriba" },
         { id: "down",  type: "hotkey", hk: "^!S",        label: "Ctrl + Alt + S",        desc: "Envía Flecha Abajo" },
-        { id: "enter", type: "hotkey", hk: "<^CapsLock", label: "Ctrl izq + Bloq Mayús", desc: "Envía Enter (anula el toggle de Mayús)" } ] },
+        { id: "enter", type: "hotkey", hk: "<^CapsLock", label: "Ctrl izq + Bloq Mayús", desc: "Envía Enter (anula el toggle de Mayús)" },
+        { id: "bksp",  type: "hotkey", hk: "+Delete",    label: "Shift + Supr",          desc: "Envía Backspace (pisa el borrado permanente de Windows)" } ] },
 
     { id: "autodate", title: "Fechas y horas rápidas (hotstrings)", src: "autodate.ahk", items: [
         { id: "kddd", type: "hotstring", hk: ":R*?:kddd", label: "kddd", desc: "Fecha dd/MM/yy" },
@@ -1626,6 +1627,10 @@ global gHKSections := [
         { id: "kyyy", type: "hotstring", hk: ":R*?:kyyy", label: "kyyy", desc: "Fecha y hora dd-MM-yy HH:mm" },
         { id: "khhh", type: "hotstring", hk: ":R*?:khhh", label: "khhh", desc: "Hora HH:mm" } ] },
 
+    { id: "mails", title: "Correos rápidos (hotstrings)", src: "Nuevo", items: [
+        { id: "kfz", type: "hotstring", hk: "::kfz", label: "kfz", desc: "Escribe fzapata@iea.com.ar (dispara al terminar la palabra)" },
+        { id: "kzf", type: "hotstring", hk: "::kzf", label: "kzf", desc: "Escribe zapatafacundo17@gmail.com (dispara al terminar la palabra)" } ] },
+
     { id: "chord", title: "Texto rápido (chord)", src: "Nuevo", items: [
         { id: "endflag", type: "hotkey", hk: "^!5", label: "Ctrl + Alt + 5, luego E",
           desc: "Escribe el texto literal %%end flag (la E debe llegar en menos de 2 s)" } ] },
@@ -1635,6 +1640,7 @@ global gHKSections := [
         { id: "check",   type: "hotkey", hk: "!^F10",      label: "Ctrl + Alt + F10", desc: "Envía el símbolo de check ✔" },
         { id: "arrowup", type: "hotkey", hk: "!^F9",       label: "Ctrl + Alt + F9",  desc: "Envía la flecha arriba ↑" },
         { id: "semicolon", type: "hotkey", hk: "^NumpadDot", label: "Ctrl + Numpad .", desc: "Envía un punto y coma `;" },
+        { id: "colon",   type: "hotkey", hk: "!NumpadDot", label: "Alt + Numpad .",   desc: "Envía un signo de dos puntos :" },
         { id: "emdash",  type: "hotkey", hk: "^NumpadSub", label: "Ctrl + Numpad -",  desc: "Envía un guion largo — (em dash)" },
         { id: "endash",  type: "hotkey", hk: "!NumpadSub", label: "Alt + Numpad -",   desc: "Envía un guion medio – (en dash)" } ] },
 
@@ -1728,6 +1734,10 @@ global gHKSections := [
         { id: "cycle",  type: "hotkey", hk: "#F4",  label: "Win + F4",         desc: "Cicla a la siguiente ventana guardada" },
         { id: "remove", type: "hotkey", hk: "#+F5", label: "Win + Shift + F5", desc: "Quita la ventana activa de la lista" },
         { id: "list",   type: "hotkey", hk: "#+F4", label: "Win + Shift + F4", desc: "Muestra la lista flotante de ventanas guardadas" } ] },
+
+    { id: "timed_windows", title: "Ventanas con timer", src: "Nuevo", items: [
+        { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece" },
+        { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo (sumar/restar tiempo, abrir ya, eliminar)" } ] },
 
     { id: "sheets", title: "Accesos a Google Sheets", src: "url_chrome.ahk", items: [
         { id: "window", type: "hotkey", hk: "^!g",  label: "Ctrl + Alt + G",         desc: "Abre la planilla en una ventana nueva de Chrome" },
