@@ -1,0 +1,3 @@
+# Live reminder database: personal data, and SimpleReminders.ahk rewrites it in
+# full on every create / edit / snooze / delete.
+SimpleReminders/reminders.csv

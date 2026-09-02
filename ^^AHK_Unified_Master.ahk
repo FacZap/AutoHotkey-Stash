@@ -1954,6 +1954,316 @@ HKExpandAll(expand) {
 }
 
 ; ============================================================================
+; Lanzador de scripts auxiliares  (botón "Aux Scripts…" en la GUI del Manager)
+;   Requiere aux-scripts.ini (recuerda qué quedó tildado y qué hacer al iniciar
+;   el master; se crea solo la primera vez que se guarda algo).
+;
+;   Estos cinco scripts no se fusionaron acá adentro: los dos de traymond-timer
+;   son AHK v1, que no puede convivir con v2 en un mismo proceso, y los tres v2
+;   traen sus propios hotkeys y su propio estado. Corren aparte, como
+;   MacroRecorder.ahk; esta ventana solo decide cuáles arrancar. Se abre al
+;   iniciar el master (ver AuxStartup, al final del archivo) y desde el botón
+;   "Aux Scripts…" del Manager.
+; ============================================================================
+global gAuxIniFile := A_ScriptDir "\aux-scripts.ini"
+
+; needs = proceso externo sin el cual el script no arranca. traymond-timer.ahk
+; se cierra con un MsgBox si Traymond no está corriendo, así que se chequea
+; antes de lanzarlo en lugar de dejar que salte ese cartel.
+global gAuxScripts := [
+    { id: "traymond_timer", ver: "v1", needs: "Traymond.exe",
+      label: "Traymond Timer",
+      path:  A_ScriptDir "\traymond-timer\traymond-timer.ahk",
+      desc:  "Win+Shift+Z esconde la ventana y pregunta en cuántos minutos devolverla" },
+
+    { id: "traymond_daily", ver: "v1", needs: "",
+      label: "Traymond restore 16:40",
+      path:  A_ScriptDir "\traymond-timer\restore-at-fixed-time.ahk",
+      desc:  "Sin hotkeys: a las 16:40 devuelve todo lo que Traymond tenga escondido" },
+
+    { id: "clipboard_ocr", ver: "v2", needs: "",
+      label: "Clipboard OCR",
+      path:  A_ScriptDir "\ClipboardOCR.ahk",
+      desc:  "Ctrl+Alt+O: OCR de la imagen del portapapeles en una ventana editable" },
+
+    { id: "cold_turkey", ver: "v2", needs: "",
+      label: "Bloque CT (Cold Turkey)",
+      path:  A_ScriptDir "\ColdTurkeyActivado.ahk",
+      desc:  "Sin hotkeys: recordatorios en pantalla a intervalos al azar (pide la config al abrir)" },
+
+    { id: "greenshot_slow_mouse", ver: "v2", needs: "",
+      label: "Greenshot Slow Mouse",
+      path:  A_ScriptDir "\GreenshotSlowMouse.ahk",
+      desc:  "Sin hotkeys: baja la velocidad del mouse mientras está la captura de región" },
+
+    { id: "kill_browsers", ver: "v2", needs: "",
+      label: "Kill Browsers",
+      path:  A_ScriptDir "\KillBrowsers\KillBrowsers.ahk",
+      desc:  "Ctrl+Alt+K: cierra Firefox/Chrome (GUI o directo, según kill_preferences.ini)" },
+
+    { id: "simple_reminders", ver: "v2", needs: "",
+      label: "Simple Reminders",
+      path:  A_ScriptDir "\SimpleReminders\SimpleReminders.ahk",
+      desc:  "Win+Alt+Z: recordatorios de texto con pop-up silencioso" }
+]
+
+; Qué hacer con la lista al iniciar el master. Se elige desde la misma ventana.
+global gAuxModeKeys   := ["ask", "auto", "off"]
+global gAuxModeLabels := ["Preguntar (abrir esta ventana)",
+                          "Lanzar los tildados sin preguntar",
+                          "No hacer nada"]
+
+global gAuxGui    := ""     ; ventana (instancia única)
+global gAuxRows   := []     ; [{ entry, cb, state }] en el orden de gAuxScripts
+global gAuxStatus := ""     ; línea de resultado al pie
+
+; ---------------------------------------------------------------------------
+; Estado persistido
+; ---------------------------------------------------------------------------
+
+; Todo arranca tildado: la primera vez conviene ver la lista completa y
+; destildar lo que no se quiera.
+AuxSelected(id) {
+    global gAuxIniFile
+    return IniRead(gAuxIniFile, "Selection", id, "1") = "1"
+}
+
+AuxSaveSelection() {
+    global gAuxRows, gAuxIniFile
+    for row in gAuxRows
+        IniWrite(row.cb.Value ? "1" : "0", gAuxIniFile, "Selection", row.entry.id)
+}
+
+AuxStartupMode() {
+    global gAuxIniFile, gAuxModeKeys
+    mode := IniRead(gAuxIniFile, "Startup", "Mode", "ask")
+    for key in gAuxModeKeys
+        if (mode = key)
+            return mode
+    return "ask"
+}
+
+; ---------------------------------------------------------------------------
+; Detección y lanzado
+; ---------------------------------------------------------------------------
+
+; Cada auxiliar corre en su propio proceso, cuya ventana (oculta) se titula
+; "<ruta completa> - AutoHotkey v<version>": la ruta alcanza para encontrarlo.
+; Los dos settings se restauran porque esta función también corre en el hilo de
+; auto-ejecución, donde cambiarlos fijaría el default de todos los hilos que
+; arranquen después.
+AuxIsRunning(path) {
+    prevMatch := A_TitleMatchMode, prevHidden := A_DetectHiddenWindows
+    SetTitleMatchMode(2)
+    DetectHiddenWindows(true)
+    found := WinExist(path " ahk_class AutoHotkey")
+    SetTitleMatchMode(prevMatch)
+    DetectHiddenWindows(prevHidden)
+    return found
+}
+
+; Se lanza por asociación de archivo (.ahk -> AutoHotkey UX launcher), que elige
+; el intérprete leyendo el #Requires del script. Es la única forma de arrancar
+; los dos de traymond-timer: A_AhkPath apunta al exe v2 que corre este master y
+; no puede ejecutar v1.
+; Devuelve { status: "launched" | "running" | "error", msg }.
+AuxLaunch(entry) {
+    if !FileExist(entry.path)
+        return { status: "error", msg: "no se encontró el archivo" }
+    if AuxIsRunning(entry.path)
+        return { status: "running", msg: "" }
+    if (entry.needs != "" && !ProcessExist(entry.needs))
+        return { status: "error", msg: entry.needs " no está corriendo" }
+    try
+        Run('"' entry.path '"')
+    catch as err
+        return { status: "error", msg: err.Message }
+    return { status: "launched", msg: "" }
+}
+
+; Devuelve { text, failed } con el resumen ya armado para mostrar.
+AuxLaunchEntries(entries) {
+    launched := [], running := [], failed := []
+    for entry in entries {
+        res := AuxLaunch(entry)
+        switch res.status {
+            case "launched": launched.Push(entry.label)
+            case "running":  running.Push(entry.label)
+            default:         failed.Push(entry.label " (" res.msg ")")
+        }
+    }
+    parts := []
+    if (launched.Length > 0)
+        parts.Push("Lanzados: " AuxJoin(launched))
+    if (running.Length > 0)
+        parts.Push("Ya corrían: " AuxJoin(running))
+    if (failed.Length > 0)
+        parts.Push("Fallaron: " AuxJoin(failed))
+    return { text: parts.Length > 0 ? AuxJoin(parts, "   |   ") : "Nada que hacer.",
+             failed: failed.Length }
+}
+
+AuxJoin(items, sep := ", ") {
+    out := ""
+    for item in items
+        out .= (out = "" ? "" : sep) item
+    return out
+}
+
+; ---------------------------------------------------------------------------
+; Ventana
+; ---------------------------------------------------------------------------
+
+ShowAuxScriptsGui() {
+    global gAuxGui, gAuxRows, gAuxScripts, gAuxStatus, gAuxModeKeys, gAuxModeLabels
+
+    ; La ventana se construye una sola vez; después solo se refresca y se vuelve
+    ; a mostrar, así los tildes quedan como los dejó el usuario.
+    if (gAuxGui != "") {
+        AuxRefreshRows()
+        gAuxGui.Show()
+        WinActivate("ahk_id " gAuxGui.Hwnd)
+        return
+    }
+
+    gAuxRows := []
+
+    gAuxGui := Gui("+AlwaysOnTop", "Scripts auxiliares del master")
+    gAuxGui.BackColor := "313131"
+    gAuxGui.Add("Text", "x10 y8 w600 h24 cc47cff", "Scripts auxiliares:").SetFont("s13 Bold", "Calibri")
+    gAuxGui.Add("Text", "x10 y+2 w600 h32 cffffff",
+        "Cada uno corre en su propio proceso, con sus propios hotkeys. Tildá los que "
+        "quieras y apretá 'Lanzar tildados': los que ya están corriendo se saltean. "
+        "Para pararlos, usá Kill en la lista del Manager.").SetFont("s9", "Calibri")
+
+    for entry in gAuxScripts {
+        cb := gAuxGui.Add("Checkbox", "x10 y+12 w330 cffffff" (AuxSelected(entry.id) ? " Checked" : ""), entry.label)
+        cb.SetFont("s10 Bold", "Calibri")
+        gAuxGui.Add("Text", "x+6 yp w24 h17 c9a9a9a", entry.ver).SetFont("s9", "Calibri")
+        state := gAuxGui.Add("Text", "x+6 yp w224 h17 c9a9a9a", "")
+        state.SetFont("s9", "Calibri")
+        gAuxGui.Add("Text", "x28 y+1 w572 h17 c9a9a9a", entry.desc).SetFont("s9", "Calibri")
+        gAuxRows.Push({ entry: entry, cb: cb, state: state })
+    }
+
+    modeIdx := 1
+    for i, key in gAuxModeKeys
+        if (key = AuxStartupMode())
+            modeIdx := i
+
+    gAuxGui.Add("Text", "x10 y+18 w140 h22 cffffff", "Al iniciar el master:").SetFont("s10", "Calibri")
+    modeDdl := gAuxGui.Add("DropDownList", "x+4 yp-3 w290 Choose" modeIdx, gAuxModeLabels)
+    modeDdl.SetFont("s10", "Calibri")
+    modeDdl.OnEvent("Change", AuxModeChanged)
+
+    HKAddButton(gAuxGui, "x10 y+14 w150", "Lanzar tildados", (*) => AuxLaunchSelected())
+    HKAddButton(gAuxGui, "x+5 yp  w110", "Tildar todo",      (*) => AuxSetAllChecks(true))
+    HKAddButton(gAuxGui, "x+5 yp  w110", "Destildar todo",   (*) => AuxSetAllChecks(false))
+    HKAddButton(gAuxGui, "x+5 yp  w100", "Refrescar",        (*) => AuxRefreshRows())
+    HKAddButton(gAuxGui, "x+5 yp  w100", "Cerrar",           (*) => AuxCloseGui())
+
+    gAuxStatus := gAuxGui.Add("Text", "x10 y+10 w590 h48 cffb86c", "")
+    gAuxStatus.SetFont("s9", "Calibri")
+
+    gAuxGui.OnEvent("Close",  (*) => AuxCloseGui())
+    gAuxGui.OnEvent("Escape", (*) => AuxCloseGui())
+
+    AuxRefreshRows()
+    gAuxGui.Show()
+}
+
+; Repinta la columna de estado. Opt() sobre un Text no redibuja por sí solo:
+; sin Redraw() queda el texto anterior fantasma sobre el fondo oscuro.
+AuxRefreshRows() {
+    global gAuxRows
+    for row in gAuxRows {
+        if !FileExist(row.entry.path) {
+            text := "[falta el archivo]", color := "cff5555"
+        } else if AuxIsRunning(row.entry.path) {
+            text := "[corriendo]", color := "c50fa7b"
+        } else {
+            text := "[detenido]", color := "c9a9a9a"
+        }
+        row.state.Text := text
+        row.state.Opt(color)
+        row.state.Redraw()
+    }
+}
+
+AuxSetAllChecks(on) {
+    global gAuxRows
+    for row in gAuxRows
+        row.cb.Value := on
+    AuxSaveSelection()
+}
+
+AuxLaunchSelected() {
+    global gAuxRows
+    AuxSaveSelection()
+    picked := []
+    for row in gAuxRows
+        if row.cb.Value
+            picked.Push(row.entry)
+    if (picked.Length = 0) {
+        AuxSetStatus("No hay ningún script tildado.")
+        return
+    }
+    AuxSetStatus(AuxLaunchEntries(picked).text)
+    ; Un .ahk lanzado por asociación pasa primero por el launcher de AutoHotkey,
+    ; así que su ventana tarda un momento en existir: el refresco va con retardo.
+    SetTimer(AuxRefreshRows, -1500)
+}
+
+AuxModeChanged(ctrl, *) {
+    global gAuxIniFile, gAuxModeKeys
+    if (ctrl.Value >= 1 && ctrl.Value <= gAuxModeKeys.Length) {
+        IniWrite(gAuxModeKeys[ctrl.Value], gAuxIniFile, "Startup", "Mode")
+        AuxSetStatus("Guardado. Al iniciar el master: " ctrl.Text)
+    }
+}
+
+AuxSetStatus(msg) {
+    global gAuxStatus
+    if (gAuxStatus != "")
+        gAuxStatus.Text := msg
+}
+
+; Los tildes se guardan al cerrar, así la próxima vez -- y el modo "auto" del
+; arranque -- ven la última selección.
+AuxCloseGui() {
+    global gAuxGui
+    AuxSaveSelection()
+    gAuxGui.Hide()
+}
+
+; ---------------------------------------------------------------------------
+; Arranque
+; ---------------------------------------------------------------------------
+
+AuxStartup() {
+    switch AuxStartupMode() {
+        case "auto": AuxStartupAutoLaunch()
+        case "off":  return
+        default:     ShowAuxScriptsGui()
+    }
+}
+
+; En modo "auto" no hay ventana donde poner el resumen, así que solo se avisa
+; cuando algo no arrancó.
+AuxStartupAutoLaunch() {
+    global gAuxScripts
+    picked := []
+    for entry in gAuxScripts
+        if AuxSelected(entry.id)
+            picked.Push(entry)
+    if (picked.Length = 0)
+        return
+    res := AuxLaunchEntries(picked)
+    if (res.failed > 0)
+        TrayTip res.text, "Scripts auxiliares", 2
+}
+
+; ============================================================================
 ; AHK_Manager.ahk  (Ctrl+Alt+R reabre/activa la ventana del Manager)
 ; ============================================================================
 ^!r::
@@ -2004,8 +2314,11 @@ AddButton("x+5", "yp", "w85", "Quit", (*) => ExitApp())
 AddButton("x10", "y+5", "w170", "Macro Recorder", (*) => OpenMacroRecorder())
 AddButton("x+5", "yp",  "w170", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
 
+; Row 5
+AddButton("x10", "y+5", "w345", "Aux Scripts…", (*) => ShowAuxScriptsGui())
+
 MyGui.OnEvent("Close", (*) => MyGui.Hide())
-MyGui.Show("w375 h365")
+MyGui.Show("w375 h400")
 Refresh()
 
 ; Escape / Alt+Espacio solo afectan cuando la ventana del Manager está activa
@@ -2231,6 +2544,12 @@ ManageAllScripts(action) {
 Sleep 200
 Run "C:\autohotkey\RBTray-4_3\64bit\RBTray.exe"
 Run "C:\Users\fzapata\Desktop\Wise Reminder.lnk"
+
+; ============================================================================
+; Scripts auxiliares  (lo último del arranque: ver el bloque "Lanzador de
+; scripts auxiliares" más arriba)
+; ============================================================================
+AuxStartup()
 
 ; ----
 ; Pruebas Manuales de hotkeys (decidir luego si eliminar)

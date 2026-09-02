@@ -37,14 +37,44 @@ AHK v1 and v2 cannot run in the same process. The master was created to consolid
 | App launchers | `find_wise_reminder`, `open_hourglass`, `url_chrome` |
 | Time utilities | `calendar`, `Sleep_Timer`, `Show_Time` |
 | Meta / management | `AHK_Manager`, `_Check_Starters`, `^RUN_starters` |
+| Auxiliary (separate processes) | `ClipboardOCR`, `ColdTurkeyActivado`, `GreenshotSlowMouse`, `KillBrowsers/`, `SimpleReminders/`, `traymond-timer/` |
 | Macro recording | `MacroRecorder` |
 
 ### Management scripts
 
-- `AHK_Manager.ahk` — GUI dashboard; lists running AHK processes with Reload/Suspend/Pause/Kill buttons. Triggered via `Ctrl+Alt+R`.
+- `AHK_Manager.ahk` — GUI dashboard; lists running AHK processes with Reload/Suspend/Pause/Kill buttons. Triggered via `Ctrl+Alt+R`. Its `Aux Scripts…`
+  button reopens the auxiliary-script launcher (below).
 - `_Check_Starters.ahk` — status-checker GUI for 20+ configured scripts/programs.
 - `^RUN_starters.ahk` — auto-launches RBTray.exe and Wise Reminder at startup.
 - `^CLOSE_starters.ahk` — mass-terminates managed scripts.
+
+### Auxiliary script launcher
+
+On startup the master opens a GUI (`ShowAuxScriptsGui()`) that offers the seven
+scripts that live outside it — tick any subset, or all, and launch them. The
+same window is reachable from the Manager's `Aux Scripts…` button.
+
+| Script | v | Notes |
+|---|---|---|
+| `traymond-timer/traymond-timer.ahk` | v1 | `Win+Shift+Z` hide + countdown. Needs Traymond.exe running or it exits with a MsgBox, so the launcher checks first. |
+| `traymond-timer/restore-at-fixed-time.ahk` | v1 | No hotkeys; daily 16:40 restore-all sweep. |
+| `ClipboardOCR.ahk` | v2 | `Ctrl+Alt+O` |
+| `ColdTurkeyActivado.ahk` | v2 | No hotkeys; asks for its config on launch. |
+| `GreenshotSlowMouse.ahk` | v2 | No hotkeys; polls for Greenshot's capture overlay and slows the pointer while it is up. Does not need Greenshot running to start. |
+| `KillBrowsers/KillBrowsers.ahk` | v2 | `Ctrl+Alt+K` |
+| `SimpleReminders/SimpleReminders.ahk` | v2 | `Win+Alt+Z` |
+
+- None of these can be merged into the master: the two traymond scripts are
+  AHK v1 (v1 and v2 cannot share a process) and the v2 ones carry their own
+  hotkeys and state. They run as separate processes, like `MacroRecorder.ahk`.
+- Launching goes through the `.ahk` file association, i.e. the AutoHotkey UX
+  launcher, which reads each script's `#Requires` and picks v1 or v2.
+  `A_AhkPath` cannot be used — it is the v2 exe running the master.
+- Already-running scripts are detected by their (hidden) window title,
+  `<full path> - AutoHotkey v<version>`, and skipped.
+- `aux-scripts.ini` stores the ticked set (`[Selection]`) and what startup
+  should do (`[Startup] Mode` = `ask` | `auto` | `off`, set from the same
+  window). Stopping a script is the Manager's `Kill` button.
 
 ### Macro recorder
 

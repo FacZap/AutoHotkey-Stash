@@ -319,6 +319,7 @@
     <tr><td><span class="key">Open Folder</span></td><td class="desc">Abre <code class="inline">C:\autohotkey</code> en el Explorador de Windows.</td></tr>
     <tr><td><span class="key">GUI Reload</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
     <tr><td><span class="key">Quit</span></td><td class="desc">Cierra por completo este script unificado (todas las funcionalidades dejan de estar activas).</td></tr>
+    <tr><td><span class="key">Aux Scripts…</span></td><td class="desc">Abre la ventana de scripts auxiliares: tilda cuáles lanzar (los dos de <code class="inline">traymond-timer</code>, <code class="inline">ClipboardOCR.ahk</code>, <code class="inline">ColdTurkeyActivado.ahk</code>, <code class="inline">GreenshotSlowMouse.ahk</code>, <code class="inline">KillBrowsers</code> y <code class="inline">SimpleReminders</code>), individualmente o todos. Corren como procesos aparte; los que ya están corriendo se saltean, y para pararlos se usa <code class="inline">Kill</code> en la lista de arriba.</td></tr>
     <tr><td><span class="key">Escape</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Oculta la ventana del Manager, igual que la X. <strong>No</strong> cierra el script: todos los hotkeys siguen activos. Para cerrarlo está el botón <code class="inline">Quit</code>.</td></tr>
     <tr><td><span class="key">Alt + Espacio</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
   </table>
@@ -327,12 +328,14 @@
   <table>
     <tr><th>Acción</th><th>Qué hace</th></tr>
     <tr><td>Lanzamiento automático</td><td class="desc">Al arrancar, además de armar todos los hotkeys de arriba y mostrar el AHK Manager, ejecuta <code class="inline">RBTray.exe</code> y abre el acceso directo de <code class="inline">Wise Reminder.lnk</code> (con una pequeña pausa de 200&nbsp;ms antes).</td></tr>
+    <tr><td>Scripts auxiliares</td><td class="desc">Según <code class="inline">aux-scripts.ini</code> (<code class="inline">[Startup] Mode</code>), al arrancar abre la ventana de scripts auxiliares para elegir cuáles lanzar (<code class="inline">ask</code>, el default), lanza los tildados sin preguntar (<code class="inline">auto</code>) o no hace nada (<code class="inline">off</code>). El modo se elige desde esa misma ventana.</td></tr>
   </table>
 
   <h2>Archivos .ini requeridos</h2>
   <table>
     <tr><th>Archivo</th><th>Qué hace</th></tr>
     <tr><td><span class="key">open-program-GUI.ini</span></td><td class="desc">Guarda overrides de ruta por programa para la GUI "Abrir programa" (sección [Paths]).</td></tr>
+    <tr><td><span class="key">aux-scripts.ini</span></td><td class="desc">Guarda qué scripts auxiliares quedaron tildados (<code class="inline">[Selection]</code>) y qué hacer con ellos al iniciar el master (<code class="inline">[Startup] Mode</code>). Se crea solo.</td></tr>
     <tr><td><span class="key">find_google_calendar.ini</span></td><td class="desc">Define qué navegador usar (Chrome o Firefox) para buscar la pestaña de Google Calendar (sección [Settings]).</td></tr>
   </table>
 
