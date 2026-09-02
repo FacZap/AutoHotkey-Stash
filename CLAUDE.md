@@ -139,4 +139,28 @@ When modifying scripts that launch external programs, verify these paths are sti
 
 ## Reference Documentation
 
-`AHK_Unified_Master_Referencia.html` (and `.pdf`) contains a dark-themed reference table of all hotkeys defined in the unified master — useful for checking for conflicts before adding new bindings.
+Three files, all describing the same thing — every hotkey and hotstring in the
+unified master, in a dark-themed table — useful for checking conflicts before
+adding a binding:
+
+| File | Role |
+|---|---|
+| `AHK_Unified_Master_Referencia_ie.html` | What `Win+Shift+?` actually opens. Plain CSS (no `var()`) because the ActiveX control uses the IE engine. Also has the search box / filter chips. |
+| `AHK_Unified_Master_Referencia.html` | Same content, modern CSS. The source the PDF is printed from. |
+| `AHK_Unified_Master_Referencia.pdf` | Printed from the modern HTML. |
+
+- **The two HTMLs must be edited together.** They drifted once and each ended up
+  missing a section the other had; a section- and key-level diff of the two is the
+  cheapest way to catch it.
+- The appendix at the end covers the auxiliary scripts, marked with an `aux` pill.
+  Those hotkeys only exist while the script in question is running, which the
+  appendix's intro note says explicitly.
+- Regenerate the PDF after editing the modern HTML:
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless=new --disable-gpu --no-pdf-header-footer --virtual-time-budget=8000 "--print-to-pdf=C:\autohotkey\AHK_Unified_Master_Referencia.pdf" "file:///C:/autohotkey/AHK_Unified_Master_Referencia.html"
+```
+
+  The `@media print` block in both HTMLs is what keeps the dark theme (via
+  `print-color-adjust: exact`), hides the search bar and stops rows splitting
+  across pages.

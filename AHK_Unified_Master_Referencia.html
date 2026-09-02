@@ -45,6 +45,20 @@
   }
   .pill.gui{background:#3a3052; color:var(--accent);}
   .pill.hold{background:#3a4a30; color:#bdf08a;}
+  .pill.aux{background:#4a3a1e; color:#ffd28a;}
+  .scope.nohk{white-space:nowrap;}
+  .note.aux{background:#2b2620; border-color:#5c4a32; color:#f3dcc0;}
+  h2.auxhead{color:#ffd28a; border-bottom-width:2px;}
+  @media print{
+    /* Conservar el tema oscuro al imprimir / exportar a PDF. */
+    body{-webkit-print-color-adjust:exact; print-color-adjust:exact;
+         padding:0; font-size:10.5pt;}
+    .searchbar, .chips, #noResults, #hitCount{display:none !important;}
+    h2{break-after:avoid; page-break-after:avoid;}
+    tr{break-inside:avoid; page-break-inside:avoid;}
+    table{break-inside:auto;}
+    .note{break-inside:avoid;}
+  }
   footer{margin-top:50px; color:var(--muted); font-size:0.8rem; text-align:center;}
   code.inline{background:var(--tag); padding:1px 6px; border-radius:4px; font-size:0.85em;}
 </style>
@@ -56,8 +70,14 @@
   <p class="subtitle">Referencia completa de hotkeys, hotstrings y funcionalidades — generada 100% a partir del contenido real del archivo unificado.</p>
 
   <div class="note">
-    <b>Cómo leer esto:</b> cada sección corresponde a un bloque del script (identificado con comentarios <code class="inline">; ====</code> dentro del .ahk, con el nombre del script original del que proviene). El <span class="pill hold">mantener presionado</span> indica una acción que se repite mientras se mantiene el botón del mouse. El <span class="pill gui">ventana</span> indica que abre una interfaz gráfica.
+    <b>Cómo leer esto:</b> cada sección corresponde a un bloque del script (identificado con comentarios <code class="inline">; ====</code> dentro del .ahk, con el nombre del script original del que proviene). El <span class="pill hold">mantener presionado</span> indica una acción que se repite mientras se mantiene el botón del mouse. El <span class="pill gui">ventana</span> indica que abre una interfaz gráfica. El <span class="pill aux">aux</span> marca el apéndice del final: scripts que corren como procesos aparte del master, cuyos hotkeys existen solo mientras ese script esté corriendo.
   </div>
+
+  <h2>Ayuda / esta referencia <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Shift + ?</span></td><td class="desc">Abre/cierra esta ventana de referencia flotante (siempre al frente, no aparece en la barra de tareas). <code class="inline">Esc</code> la cierra.</td></tr>
+  </table>
 
   <h2>Teclado y navegación <span class="src">arrows-keystrokes.ahk</span></h2>
   <table>
@@ -65,6 +85,7 @@
     <tr><td><span class="key">Ctrl + Alt + W</span></td><td class="desc">Envía la tecla <code class="inline">Flecha Arriba</code>.</td></tr>
     <tr><td><span class="key">Ctrl + Alt + S</span></td><td class="desc">Envía la tecla <code class="inline">Flecha Abajo</code>.</td></tr>
     <tr><td><span class="key">Ctrl izquierdo + Bloq Mayús</span></td><td class="desc">Envía la tecla <code class="inline">Enter</code> (anula el toggle de Bloq Mayús mientras se mantiene Ctrl izquierdo).</td></tr>
+    <tr><td><span class="key">Shift + Supr</span></td><td class="desc">Envía la tecla <code class="inline">Backspace</code>. Ojo: pisa el <em>borrado permanente</em> de Windows, así que Shift+Supr en el Explorador ya no saltea la papelera de reciclaje.</td></tr>
   </table>
 
   <h2>Fechas y horas rápidas (hotstrings) <span class="src">autodate.ahk</span></h2>
@@ -80,6 +101,13 @@
     <tr><td><span class="key">khhh</span></td><td class="desc">Inserta la hora actual en formato <code class="inline">HH:mm</code>.</td></tr>
   </table>
   <p class="scope">Todas se activan escribiendo el texto disparador en cualquier campo (modo "raw", sin necesidad de carácter final).</p>
+
+  <h2>Correos rápidos (hotstrings) <span class="src">^^AHK_Unified_Master.ahk</span></h2>
+  <table>
+    <tr><th>Texto disparador</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">kfz</span></td><td class="desc">Escribe <code class="inline">fzapata@iea.com.ar</code>. A diferencia de los <code class="inline">k...</code> de fechas, este dispara al terminar la palabra (hace falta un espacio, Enter o signo de puntuación después).</td></tr>
+    <tr><td><span class="key">kzf</span></td><td class="desc">Escribe <code class="inline">zapatafacundo17@gmail.com</code>, con el mismo comportamiento.</td></tr>
+  </table>
 
   <h2>Texto rápido (chord) <span class="src">^^AHK_Unified_Master.ahk</span></h2>
   <table>
@@ -265,6 +293,12 @@
     <tr><td><span class="key">Ctrl + Alt + Click derecho</span></td><td class="desc">Restaura la ventana activa (si estaba minimizada/maximizada) y la centra en la pantalla principal.</td></tr>
   </table>
 
+  <h2>Pruebas manuales</h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Ñ</span></td><td class="desc">Abre <code class="inline">http://youtube.com</code> en el navegador por defecto. Está al final del .ahk, bajo el comentario <code class="inline">Pruebas Manuales de hotkeys (decidir luego si eliminar)</code>.</td></tr>
+  </table>
+
   <h2>AHK Manager <span class="src">AHK_Manager.ahk</span> <span class="pill gui">ventana</span></h2>
   <table>
     <tr><th>Hotkey / control</th><th>Qué hace</th></tr>
@@ -294,6 +328,61 @@
     <tr><td><span class="key">open-program-GUI.ini</span></td><td class="desc">Guarda overrides de ruta por programa para la GUI "Abrir programa" (sección [Paths]).</td></tr>
     <tr><td><span class="key">aux-scripts.ini</span></td><td class="desc">Guarda qué scripts auxiliares quedaron tildados (<code class="inline">[Selection]</code>) y qué hacer con ellos al iniciar el master (<code class="inline">[Startup] Mode</code>). Se crea solo.</td></tr>
     <tr><td><span class="key">find_google_calendar.ini</span></td><td class="desc">Define qué navegador usar (Chrome o Firefox) para buscar la pestaña de Google Calendar (sección [Settings]).</td></tr>
+  </table>
+
+  <h2 class="auxhead">Scripts auxiliares <span class="pill aux">aux</span></h2>
+  <div class="note aux">
+    <b>Nada de lo que sigue está en el script maestro.</b> Son procesos aparte — marcados con <span class="pill aux">aux</span> — que se lanzan desde el botón <code class="inline">Aux Scripts…</code> del Manager, o al iniciar el master según <code class="inline">aux-scripts.ini</code>.
+    Sus hotkeys existen <b>solo mientras el script esté corriendo</b>: si no lo lanzaste, la tecla no hace nada y conserva su comportamiento nativo de Windows. Para ver cuáles están activos, esa misma ventana los marca como <code class="inline">[corriendo]</code> o <code class="inline">[detenido]</code>, y aparecen en la lista del Manager.
+    Tampoco se pueden apagar desde <code class="inline">Hotkeys…</code>: ese menú solo alcanza a los hotkeys del propio master.
+  </div>
+
+  <h2>Traymond Timer <span class="src">traymond-timer/traymond-timer.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v1</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Shift + Z</span></td><td class="desc">Esconde la ventana activa a la bandeja (se lo pide a Traymond) y pregunta en cuántos minutos devolverla. <b>Pisa a propósito el Win+Shift+Z propio de Traymond</b>: lo ve primero, anota qué ventana se va y le reenvía el ocultado, que es lo que hace posible la cuenta regresiva.</td></tr>
+    <tr><td><span class="key">Win + Alt + Shift + Z</span></td><td class="desc">Esconde sin cuenta regresiva y sin preguntar — exactamente lo que hace Traymond por su cuenta.</td></tr>
+    <tr><td><span class="key">Win + Shift + R</span></td><td class="desc">Devuelve ahora mismo todas las ventanas escondidas.</td></tr>
+    <tr><td><span class="key">Win + Shift + C</span></td><td class="desc">Olvida las cuentas regresivas pendientes y deja las ventanas escondidas.</td></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">Requiere <code class="inline">Traymond.exe</code> corriendo: sin él el script se cierra con un cartel al arrancar, y por eso la ventana <code class="inline">Aux Scripts…</code> lo chequea antes de lanzarlo. También trae menú de bandeja (restaurar todo, ver pendientes, cancelar).</td></tr>
+  </table>
+
+  <h2>Traymond restore 16:40 <span class="src">traymond-timer/restore-at-fixed-time.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v1</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">No define ningún hotkey — por diseño, para no poder chocar con nada. Todos los días a las <code class="inline">16:40</code> le pide a Traymond que devuelva todas las ventanas que tenga escondidas. Sirve como barrido diario encima de las cuentas regresivas individuales.</td></tr>
+  </table>
+
+  <h2>Clipboard OCR <span class="src">ClipboardOCR.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + O</span></td><td class="desc">Hace OCR de la imagen que esté en el portapapeles y muestra el texto reconocido en una ventana editable: <code class="inline">Copiar texto</code> / <code class="inline">Guardar .txt</code> / <code class="inline">Guardar imagen</code> / <code class="inline">Descartar</code>. Los dos guardados escriben archivos con fecha y hora en la carpeta Descargas.</td></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">Usa <code class="inline">OCR.ahk</code> (la API Windows.Media.Ocr): no hace falta instalar ningún motor de OCR aparte.</td></tr>
+  </table>
+
+  <h2>Bloque CT (Cold Turkey) <span class="src">ColdTurkeyActivado.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">No define hotkeys. Al lanzarlo pide la configuración (intervalo mínimo y máximo en minutos, y a los cuántos minutos parar solo) y después muestra recordatorios en pantalla a intervalos al azar dentro de ese rango. La ventana <code class="inline">Bloque CT Running</code> lleva la cuenta; cerrarla con la X <b>no</b> corta los recordatorios (se reabre desde el icono de la bandeja), para eso está <code class="inline">Stop Script</code>.</td></tr>
+  </table>
+
+  <h2>Greenshot Slow Mouse <span class="src">GreenshotSlowMouse.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">No define hotkeys: vigila la aparición de la ventana de captura de región de Greenshot (cada 75&nbsp;ms) en lugar de atarse a una tecla, así funciona sin importar cómo se inició la captura y no hay que mantenerlo sincronizado con los hotkeys de Greenshot. Mientras esa ventana está en pantalla baja el puntero al 70&nbsp;% y apaga la aceleración del mouse, para poder ajustar los bordes de la selección con precisión; lo restaura todo al cerrarse (y también si el script se cierra a mitad de camino). No necesita que Greenshot esté corriendo para arrancar.</td></tr>
+  </table>
+
+  <h2>Kill Browsers <span class="src">KillBrowsers/KillBrowsers.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + K</span></td><td class="desc">Cierra Firefox y/o Chrome. Según <code class="inline">kill_preferences.ini</code> abre una ventana para elegir, o mata directo el primero del orden configurado (<code class="inline">DoNotOpenGUI=1</code>). El .ini se relee en cada uso, así que no hay que recargar el script al cambiarlo. <b>No confundir con <span class="key">Ctrl + Shift + Alt + K</span></b> del master (ver <em>Cerrar ventanas masivamente</em>), que cierra todo <em>excepto</em> los navegadores.</td></tr>
+  </table>
+
+  <h2>Simple Reminders <span class="src">SimpleReminders/SimpleReminders.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Alt + Z</span></td><td class="desc">Abre la ventana para escribir, editar y borrar recordatorios (hasta 100 caracteres, con fecha y hora). <code class="inline">Esc</code> o cerrar la oculta; el script sigue en la bandeja.</td></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">Cuando llega la hora aparece un cartel chico en el centro-derecha de la pantalla, con opciones de postergar: sin sonido, sin alarma y sin robar el foco. Cerrarlo con la X o <code class="inline">Esc</code> lo posterga, para que no se pierda. La base es <code class="inline">reminders.csv</code>, al lado del script.</td></tr>
   </table>
 
   <footer>Generado a partir de <code class="inline">D:\ahk2\AHK_Unified_Master.ahk</code> — todo el contenido refleja exactamente los hotkeys y la lógica presentes en ese archivo.</footer>
