@@ -978,12 +978,20 @@ CheckWinReleased() {
 ; Ventanas con timer  (lista aparte de la del ciclador Win+F4/F5)
 ;   Win+F6        = guarda la ventana activa y abre una GUI para elegir en
 ;                   cuánto tiempo reaparece (+ check "Always on top").
-;   Win+Shift+F6  = GUI de administración: ver los timers corriendo, sumar o
-;                   restar tiempo, abrir ya o eliminarlos.
+;   Ctrl+Win+F6   = lo mismo pero con la PESTAÑA activa del navegador (Chrome,
+;                   Firefox o Edge): guarda esa pestaña puntual y al vencer el
+;                   timer la vuelve a seleccionar, no solo la ventana.
+;   Win+Shift+F6  = GUI de administración: ver los timers corriendo (ventanas y
+;                   pestañas), sumar o restar tiempo, abrir ya o eliminarlos.
 ;   Al cumplirse el tiempo la ventana se restaura (si estaba minimizada) y se
 ;   activa; el timer se consume (no se repite).
+;   Las pestañas se ubican por título vía UI Automation (UIA.ahk), igual que
+;   Shift+NumpadEnter (find_google_calendar), así que sobreviven a que la
+;   pestaña cambie de posición o incluso de ventana.
 ; ============================================================================
-global gTimedWindows := []        ; items: Map("id","hwnd","title","due","aot")
+; items ventana:  Map("id","kind","hwnd","title","due","aot")
+; items pestaña:  Map("id","kind","hwnd","exe","tab","title","due","aot")
+global gTimedWindows := []
 global gTimedNextId  := 1
 global gTimedGui     := ""        ; GUI de administración (Win+Shift+F6)
 global gTimedGuiLV   := ""
@@ -991,9 +999,11 @@ global gTimedGuiHdr  := ""
 global gTimedGuiIds  := []        ; id del timer que corresponde a cada fila
 global gTimedLastMin := 5         ; últimos valores usados en la GUI de alta
 global gTimedLastSec := 0
+global gTimedBrowserExes := ["chrome.exe", "firefox.exe", "msedge.exe"]
 SetTimer(CheckTimedWindows, 500)
 
 #F6::SaveWindowWithTimer()
+^#F6::SaveBrowserTabWithTimer()
 #+F6::ShowTimedWindowsGui()
 
 SaveWindowWithTimer() {
@@ -1005,31 +1015,100 @@ SaveWindowWithTimer() {
     OpenTimedWindowGui(hwnd)
 }
 
-OpenTimedWindowGui(hwnd) {
+; ---- Alta de un timer para la pestaña activa del navegador (Ctrl+Win+F6) ----
+SaveBrowserTabWithTimer() {
+    global gTimedBrowserExes
+    hwnd := WinGetID("A")
+    if !hwnd {
+        TrayTip "Sin ventana activa", "No hay ninguna ventana para guardar.", 2
+        return
+    }
+    exe := ""
+    try exe := WinGetProcessName("ahk_id " hwnd)
+    isBrowser := false
+    for candidate in gTimedBrowserExes {
+        if (candidate = exe) {
+            isBrowser := true
+            break
+        }
+    }
+    if !isBrowser {
+        TrayTip "No es un navegador"
+            , "Ctrl+Win+F6 guarda la pestaña activa de Chrome, Firefox o Edge.`nVentana actual: " exe, 2
+        return
+    }
+    tabName := GetActiveBrowserTabName(hwnd)
+    if (tabName = "") {
+        TrayTip "Pestaña no detectada"
+            , "No pude leer la pestaña activa de " exe ".`n(En Firefox hace falta tener la accesibilidad activada.)", 2
+        return
+    }
+    OpenTimedWindowGui(hwnd, tabName, exe)
+}
+
+; Nombre de la pestaña seleccionada en una ventana de navegador, vía UIA.
+GetActiveBrowserTabName(hwnd) {
+    try {
+        root := UIA.ElementFromHandle(hwnd)
+        for tab in root.FindElements({Type: "TabItem"}) {
+            try {
+                if (tab.SelectionItemIsSelected && tab.Name != "")
+                    return NormalizeTabName(tab.Name)
+            }
+        }
+    }
+    return ""
+}
+
+; Chrome le cuelga al nombre de la pestaña cosas que cambian solas
+; ("- Memory usage - 466 MB", "- Pinned", "- Audio playing") y varias webs le
+; meten el contador de no leídos adelante ("(185) Recibidos..."). Sin limpiar
+; eso, el nombre guardado no vuelve a coincidir nunca.
+NormalizeTabName(name) {
+    s := Trim(name)
+    loop 5 {
+        prev := s
+        s := RegExReplace(s, "i)\s+[-–—]\s+(Memory usage|Uso de memoria)\s+[-–—]\s+[\d.,]+\s*[KMGT]?B$")
+        s := RegExReplace(s, "i)\s+[-–—]\s+(Pinned|Fijada|Anclada|Audio playing|Reproduciendo audio|Muted|Silenciada|Recording|Grabando|Sharing|Compartiendo)$")
+        s := Trim(s)
+        if (s = prev)
+            break
+    }
+    return Trim(RegExReplace(s, "^\(\d+\)\s*"))
+}
+
+; tabName/exe vacíos => timer de ventana; con valor => timer de pestaña.
+OpenTimedWindowGui(hwnd, tabName := "", exe := "") {
     global gTimedLastMin, gTimedLastSec
+    isTab := (tabName != "")
     title := ""
-    try title := WinGetTitle("ahk_id " hwnd)
+    if isTab
+        title := tabName
+    else
+        try title := WinGetTitle("ahk_id " hwnd)
     shown := (title = "") ? "(sin título)"
         : (StrLen(title) > 64 ? SubStr(title, 1, 61) "..." : title)
 
-    tw := Gui("+AlwaysOnTop", "Guardar ventana con timer")
+    tw := Gui("+AlwaysOnTop", isTab ? "Guardar pestaña con timer" : "Guardar ventana con timer")
     tw.SetFont("s10", "Segoe UI")
-    tw.Add("Text", "xm w390", "Ventana guardada:")
+    tw.Add("Text", "xm w390", isTab ? "Pestaña guardada (" exe "):" : "Ventana guardada:")
     tw.SetFont("s10 bold")
     tw.Add("Text", "xm w390", shown)
     tw.SetFont("s10 norm")
-    ; Aviso (no bloqueante) si esta misma ventana ya tenía un timer pendiente.
-    if (existing := FindTimedWindowByHwnd(hwnd))
+    ; Aviso (no bloqueante) si esto mismo ya tenía un timer pendiente.
+    existing := isTab ? FindTimedTabByName(tabName) : FindTimedWindowByHwnd(hwnd)
+    if existing
         tw.Add("Text", "xm w390 cRed"
             , "Ojo: ya tenía un timer corriendo (" FormatRemaining(existing["due"]) "). Se suma otro.")
-    tw.Add("Text", "xm", "Abrirla dentro de (minutos : segundos):")
+    tw.Add("Text", "xm", (isTab ? "Volver a ella" : "Abrirla") " dentro de (minutos : segundos):")
     minEdit := tw.Add("Edit", "xm w70 Number Limit4", gTimedLastMin)
     tw.Add("Text", "x+8 yp+5 w12 Center", ":")
     secEdit := tw.Add("Edit", "x+8 yp-5 w70 Number Limit2", gTimedLastSec)
     aotChk := tw.Add("CheckBox", "xm", "Dejarla Always on top al abrirla")
     startBtn := tw.Add("Button", "xm w120 Default", "Iniciar")
     cancelBtn := tw.Add("Button", "x+10 w120", "Cancelar")
-    startBtn.OnEvent("Click", (*) => TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk))
+    startBtn.OnEvent("Click"
+        , (*) => TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk, tabName, exe))
     cancelBtn.OnEvent("Click", (*) => tw.Destroy())
     tw.OnEvent("Close", (*) => tw.Destroy())
     tw.OnEvent("Escape", (*) => tw.Destroy())
@@ -1037,29 +1116,38 @@ OpenTimedWindowGui(hwnd) {
     minEdit.Focus()
 }
 
-TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk) {
+TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk, tabName := "", exe := "") {
     global gTimedWindows, gTimedNextId, gTimedLastMin, gTimedLastSec
+    isTab := (tabName != "")
     totalSec := (minEdit.Value + 0) * 60 + (secEdit.Value + 0)
     if (totalSec <= 0) {
         MsgBox "Ingresá un tiempo mayor a 0.", "Timer de ventana", 48
         return
     }
-    if !WinExist("ahk_id " hwnd) {
+    ; La pestaña puede sobrevivir a su ventana (se la arrastra a otra), así que
+    ; solo exigimos que la ventana siga viva para los timers de ventana.
+    if (!isTab && !WinExist("ahk_id " hwnd)) {
         MsgBox "La ventana ya no existe.", "Timer de ventana", 48
         tw.Destroy()
         return
     }
     gTimedLastMin := minEdit.Value + 0
     gTimedLastSec := secEdit.Value + 0
-    gTimedWindows.Push(Map(
+    item := Map(
         "id", gTimedNextId,
+        "kind", isTab ? "tab" : "win",
         "hwnd", hwnd,
         "title", (title = "" ? "(sin título)" : title),
         "due", A_TickCount + totalSec * 1000,
-        "aot", aotChk.Value ? true : false))
+        "aot", aotChk.Value ? true : false)
+    if isTab {
+        item["tab"] := tabName
+        item["exe"] := exe
+    }
+    gTimedWindows.Push(item)
     gTimedNextId += 1
     tw.Destroy()
-    TrayTip "Timer creado"
+    TrayTip (isTab ? "Timer de pestaña creado" : "Timer creado")
         , "Se abre en " FormatSeconds(totalSec) "`n" title "`nTimers activos: " gTimedWindows.Length, 2
     RebuildTimedWindowsGui()
 }
@@ -1072,7 +1160,9 @@ CheckTimedWindows() {
     i := gTimedWindows.Length
     while (i >= 1) {
         item := gTimedWindows[i]
-        if !WinExist("ahk_id " item["hwnd"]) {
+        ; A los timers de pestaña no les miramos el hwnd: la pestaña puede haber
+        ; pasado a otra ventana. Se resuelven por título recién al vencer.
+        if (item["kind"] = "win" && !WinExist("ahk_id " item["hwnd"])) {
             gTimedWindows.RemoveAt(i)
             changed := true
             TrayTip "Timer cancelado", "Se cerró la ventana:`n" item["title"], 2
@@ -1088,6 +1178,10 @@ CheckTimedWindows() {
 }
 
 OpenTimedWindow(item) {
+    if (item["kind"] = "tab") {
+        OpenTimedTab(item)
+        return
+    }
     hwnd := item["hwnd"]
     if !WinExist("ahk_id " hwnd)
         return
@@ -1101,10 +1195,88 @@ OpenTimedWindow(item) {
     TrayTip "Ventana abierta", item["title"], 2
 }
 
+; Busca la pestaña por título (primero en el navegador donde se guardó, después
+; en los demás), la selecciona y activa su ventana.
+OpenTimedTab(item) {
+    global gTimedBrowserExes
+    exes := []
+    if (item["exe"] != "")
+        exes.Push(item["exe"])
+    for candidate in gTimedBrowserExes {
+        if (candidate != item["exe"])
+            exes.Push(candidate)
+    }
+    ; Ventanas a revisar: primero aquella en la que se guardó la pestaña (así un
+    ; título genérico tipo "New Tab" no engancha la de otra ventana), después el
+    ; resto del mismo navegador y por último los otros navegadores.
+    hwnds := []
+    if WinExist("ahk_id " item["hwnd"])
+        hwnds.Push(item["hwnd"])
+    for exe in exes {
+        for hwnd in WinGetList("ahk_exe " exe) {
+            if (hwnd != item["hwnd"])
+                hwnds.Push(hwnd)
+        }
+    }
+    ; Primera pasada por título exacto; si no aparece, segunda por coincidencia
+    ; parcial (los títulos de página cambian solos: "(3) Bandeja...", etc.).
+    for exact in [true, false] {
+        for hwnd in hwnds {
+            if (tab := FindBrowserTab(hwnd, item["tab"], exact)) {
+                try {
+                    if (WinGetMinMax("ahk_id " hwnd) = -1)
+                        WinRestore "ahk_id " hwnd
+                    tab.Select()
+                    WinActivate "ahk_id " hwnd
+                }
+                TrayTip "Pestaña abierta", item["title"], 2
+                return
+            }
+        }
+    }
+    TrayTip "Pestaña no encontrada"
+        , "Ya no está abierta:`n" item["title"], 2
+}
+
+FindBrowserTab(hwnd, name, exact) {
+    try {
+        root := UIA.ElementFromHandle(hwnd)
+        for tab in root.FindElements({Type: "TabItem"}) {
+            try {
+                if (tab.Name = "")
+                    continue
+                live := NormalizeTabName(tab.Name)
+                if (live = "")
+                    continue
+                ; La segunda pasada acepta coincidencia parcial en cualquiera de
+                ; los dos sentidos: el título de la página puede haber crecido o
+                ; achicado desde que se guardó. Con un mínimo de 8 caracteres,
+                ; para no enganchar cualquier pestaña por un "Jira" suelto.
+                if exact {
+                    if (live = name)
+                        return tab
+                } else if (StrLen(live) >= 8 && StrLen(name) >= 8
+                    && (InStr(live, name) || InStr(name, live)))
+                    return tab
+            }
+        }
+    }
+    return ""
+}
+
 FindTimedWindowByHwnd(hwnd) {
     global gTimedWindows
     for item in gTimedWindows {
-        if (item["hwnd"] = hwnd)
+        if (item["kind"] = "win" && item["hwnd"] = hwnd)
+            return item
+    }
+    return ""
+}
+
+FindTimedTabByName(name) {
+    global gTimedWindows
+    for item in gTimedWindows {
+        if (item["kind"] = "tab" && item["tab"] = name)
             return item
     }
     return ""
@@ -1135,11 +1307,12 @@ ShowTimedWindowsGui() {
     g.MarginY := 10
     g.SetFont("s9", "Segoe UI")
     gTimedGuiHdr := g.Add("Text", "xm w540", "")
-    lv := g.Add("ListView", "xm w540 r8 Grid -Multi", ["#", "Restante", "Ventana", "Top"])
+    lv := g.Add("ListView", "xm w540 r8 Grid -Multi", ["#", "Restante", "Tipo", "Ventana / pestaña", "Top"])
     lv.ModifyCol(1, 30)
     lv.ModifyCol(2, 70)
-    lv.ModifyCol(3, 390)
-    lv.ModifyCol(4, 40)
+    lv.ModifyCol(3, 60)
+    lv.ModifyCol(4, 330)
+    lv.ModifyCol(5, 40)
     add1Btn := g.Add("Button", "xm w76", "+1 min")
     add5Btn := g.Add("Button", "x+6 w76", "+5 min")
     sub1Btn := g.Add("Button", "x+6 w76", "-1 min")
@@ -1184,20 +1357,25 @@ RebuildTimedWindowsGui() {
     gTimedGuiIds := []
     for i, item in gTimedWindows {
         title := item["title"]
-        try {
-            live := WinGetTitle("ahk_id " item["hwnd"])
-            if (live != "")
-                title := live
+        ; El título de una ventana se refresca; el de una pestaña queda como se
+        ; guardó, que es justamente la clave con la que después la buscamos.
+        if (item["kind"] = "win") {
+            try {
+                live := WinGetTitle("ahk_id " item["hwnd"])
+                if (live != "")
+                    title := live
+            }
         }
         gTimedGuiIds.Push(item["id"])
-        gTimedGuiLV.Add("", i, FormatRemaining(item["due"]), title, item["aot"] ? "Sí" : "")
+        gTimedGuiLV.Add("", i, FormatRemaining(item["due"])
+            , item["kind"] = "tab" ? "Pestaña" : "Ventana", title, item["aot"] ? "Sí" : "")
     }
     gTimedGuiLV.Opt("+Redraw")
     if (sel >= 1 && sel <= gTimedWindows.Length)
         gTimedGuiLV.Modify(sel, "Select Focus")
     gTimedGuiHdr.Text := gTimedWindows.Length
-        ? "Timers corriendo: " gTimedWindows.Length "   (Win+F6 agrega uno nuevo)"
-        : "No hay timers corriendo   (Win+F6 agrega uno nuevo)"
+        ? "Timers corriendo: " gTimedWindows.Length "   (Win+F6 ventana, Ctrl+Win+F6 pestaña)"
+        : "No hay timers corriendo   (Win+F6 ventana, Ctrl+Win+F6 pestaña)"
 }
 
 ; Solo actualiza la columna "Restante" para no perder la selección ni parpadear.
@@ -1737,6 +1915,7 @@ global gHKSections := [
 
     { id: "timed_windows", title: "Ventanas con timer", src: "Nuevo", items: [
         { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece" },
+        { id: "tab",   type: "hotkey", hk: "^#F6", label: "Ctrl + Win + F6",  desc: "Guarda la pestaña activa del navegador y elige en cuánto tiempo vuelve" },
         { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo (sumar/restar tiempo, abrir ya, eliminar)" } ] },
 
     { id: "sheets", title: "Accesos a Google Sheets", src: "url_chrome.ahk", items: [
