@@ -417,8 +417,11 @@ IdleCheck2() {
 ;   Win+Alt+U  y luego  A  (< 2 s)  -> abre la GUI del timer -> Play/Pausa
 ;   (esa GUI y su disparo viven en la sección "Timer -> Play/Pausa", más abajo)
 ; ============================================================================
-global timerMinutes := 0          ; último valor de minutos usado en la GUI
-global timerSeconds := 30         ; último valor de segundos usado en la GUI
+; El tiempo se tipea en un solo campo, con el mismo formato que Win+F6 y que el
+; prompt de traymond-timer.ahk (ParseTimedDelaySeconds, más abajo):
+;   25 (minutos) | 90m | 2h | 1h30 | 45s | @17:45 (hora de reloj) | 0 (cancela
+;   el timer pendiente).  La inactividad sigue siendo un campo aparte en minutos.
+global sTimerLastDelay := "30s"   ; último tiempo tipeado en la GUI
 global inactivityMinutes := 10    ; auto-envío por inactividad; 0 = desactivado
 global inactivityFired := false   ; evita reenvíos dentro del mismo período inactivo
 global waitingForSTimerKey := false ; true tras Win+Alt+U, esperando la "I" (< 1 s)
@@ -474,41 +477,54 @@ ClearTimerChordWait() {
 }
 
 OpenSTimerGui() {
-    global timerMinutes, timerSeconds, inactivityMinutes
-    stg := Gui("+AlwaysOnTop", "Timer -> Win+Alt+S")
-    stg.SetFont("s10", "Segoe UI")
-    stg.Add("Text", "xm", "Tiempo del timer (minutos : segundos):")
-    minEdit := stg.Add("Edit", "xm w70 Number Limit3", timerMinutes)
-    stg.Add("Text", "x+8 yp+5 w12 Center", ":")
-    secEdit := stg.Add("Edit", "x+8 yp-5 w70 Number Limit2", timerSeconds)
-    stg.Add("Text", "xm", "Auto-envío por inactividad (minutos, 0 = off):")
-    inacEdit := stg.Add("Edit", "xm w70 Number Limit4", inactivityMinutes)
-    inacBtn := stg.Add("Button", "x+10 yp-3 w110", "Solo inactividad")
-    startBtn := stg.Add("Button", "xm w120 Default", "Iniciar")
-    cancelBtn := stg.Add("Button", "x+10 w120", "Cancelar")
-    startBtn.OnEvent("Click", (*) => STimerStart(stg, minEdit, secEdit, inacEdit))
+    global sTimerLastDelay, inactivityMinutes
+    stg := Gui("+AlwaysOnTop +ToolWindow", "Timer -> Win+Alt+S")
+    stg.MarginX := 14
+    stg.MarginY := 12
+    stg.SetFont("s9", "Segoe UI")
+    stg.Add("Text", "xm", "Mandar Win+Alt+S en:")
+    delayEdit := stg.Add("Edit", "xm y+4 w110", sTimerLastDelay)
+    stg.Add("Text", "x+8 yp+4 cGray", "minutos")
+    stg.Add("Text", "xm y+12 w420 cGray"
+        , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
+          . "0 cancela el timer pendiente.")
+    stg.Add("Text", "xm y+12", "Auto-envío por inactividad (minutos, 0 = off):")
+    inacEdit := stg.Add("Edit", "xm y+4 w110 Number Limit4", inactivityMinutes)
+    inacBtn := stg.Add("Button", "x+10 yp-3 w130", "Solo inactividad")
+    startBtn := stg.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
+    cancelBtn := stg.Add("Button", "x+10 w130", "Cancelar")
+    startBtn.OnEvent("Click", (*) => STimerStart(stg, delayEdit, inacEdit))
     inacBtn.OnEvent("Click", (*) => STimerSetInactivityOnly(stg, inacEdit))
     cancelBtn.OnEvent("Click", (*) => stg.Destroy())
     stg.OnEvent("Close", (*) => stg.Destroy())
     stg.OnEvent("Escape", (*) => stg.Destroy())
     stg.Show()
-    minEdit.Focus()
+    delayEdit.Focus()
+    SendMessage(0x00B1, 0, -1, delayEdit)    ; EM_SETSEL: deja el valor seleccionado
 }
 
-STimerStart(stg, minEdit, secEdit, inacEdit) {
-    global timerMinutes, timerSeconds, inactivityMinutes, inactivityFired
+STimerStart(stg, delayEdit, inacEdit) {
+    global sTimerLastDelay, inactivityMinutes, inactivityFired
+    typed := Trim(delayEdit.Value)
+    totalSec := ParseTimedDelaySeconds(typed)
+    if (totalSec < 0) {
+        stg.Opt("+OwnDialogs")
+        MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
+            , "Timer -> Win+Alt+S", 48
+        return
+    }
     ; Guardar valores para la próxima apertura y para la inactividad.
-    timerMinutes := minEdit.Value + 0
-    timerSeconds := secEdit.Value + 0
+    if (totalSec > 0)                        ; un "0" no se guarda como prefill
+        sTimerLastDelay := typed
     inactivityMinutes := inacEdit.Value + 0
     inactivityFired := false                 ; re-armar el chequeo de inactividad
     stg.Destroy()
-    totalMs := (timerMinutes * 60 + timerSeconds) * 1000
-    if (totalMs > 0) {
-        SetTimer(FireSCombo, -totalMs)       ; one-shot: dispara al cumplirse
-        ToolTip "Timer: " timerMinutes " min " timerSeconds " s -> Win+Alt+S"
+    if (totalSec > 0) {
+        SetTimer(FireSCombo, -totalSec * 1000)   ; one-shot: dispara al cumplirse
+        ToolTip "Timer: " FormatSeconds(totalSec) " -> Win+Alt+S"
     } else {
-        ToolTip "Sin timer (0:00). Inactividad: " inactivityMinutes " min"
+        SetTimer(FireSCombo, 0)                  ; 0 -> cancela lo que hubiera
+        ToolTip "Timer Win+Alt+S cancelado. Inactividad: " inactivityMinutes " min"
     }
     SetTimer () => ToolTip(), -1500
 }
@@ -550,42 +566,53 @@ CheckInactivity() {
 ;   Win+Alt+U  y luego  A  (< 2 s)  -> abre esta GUI (el acorde se arma en la
 ;   sección "Timer -> Win+Alt+S", que es la dueña del hotkey Win+Alt+U)
 ;   Al cumplirse el tiempo elegido  -> envía Media_Play_Pause
-;   Iniciar con 0:00                -> cancela el timer pendiente
+;   Iniciar con 0                   -> cancela el timer pendiente
+;   Mismo campo único y mismo formato que la GUI de Win+Alt+S y que Win+F6.
 ; ============================================================================
-global aTimerMinutes := 0         ; último valor de minutos usado en la GUI
-global aTimerSeconds := 30        ; último valor de segundos usado en la GUI
+global aTimerLastDelay := "30s"   ; último tiempo tipeado en la GUI
 
 OpenATimerGui() {
-    global aTimerMinutes, aTimerSeconds
-    atg := Gui("+AlwaysOnTop", "Timer -> Play/Pausa")
-    atg.SetFont("s10", "Segoe UI")
-    atg.Add("Text", "xm", "Tiempo del timer (minutos : segundos):")
-    minEdit := atg.Add("Edit", "xm w70 Number Limit3", aTimerMinutes)
-    atg.Add("Text", "x+8 yp+5 w12 Center", ":")
-    secEdit := atg.Add("Edit", "x+8 yp-5 w70 Number Limit2", aTimerSeconds)
-    startBtn := atg.Add("Button", "xm w120 Default", "Iniciar")
-    cancelBtn := atg.Add("Button", "x+10 w120", "Cancelar")
-    startBtn.OnEvent("Click", (*) => ATimerStart(atg, minEdit, secEdit))
+    global aTimerLastDelay
+    atg := Gui("+AlwaysOnTop +ToolWindow", "Timer -> Play/Pausa")
+    atg.MarginX := 14
+    atg.MarginY := 12
+    atg.SetFont("s9", "Segoe UI")
+    atg.Add("Text", "xm", "Mandar Play/Pausa en:")
+    delayEdit := atg.Add("Edit", "xm y+4 w110", aTimerLastDelay)
+    atg.Add("Text", "x+8 yp+4 cGray", "minutos")
+    atg.Add("Text", "xm y+12 w420 cGray"
+        , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
+          . "0 cancela el timer pendiente.")
+    startBtn := atg.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
+    cancelBtn := atg.Add("Button", "x+10 w130", "Cancelar")
+    startBtn.OnEvent("Click", (*) => ATimerStart(atg, delayEdit))
     cancelBtn.OnEvent("Click", (*) => atg.Destroy())
     atg.OnEvent("Close", (*) => atg.Destroy())
     atg.OnEvent("Escape", (*) => atg.Destroy())
     atg.Show()
-    minEdit.Focus()
+    delayEdit.Focus()
+    SendMessage(0x00B1, 0, -1, delayEdit)    ; EM_SETSEL: deja el valor seleccionado
 }
 
-ATimerStart(atg, minEdit, secEdit) {
-    global aTimerMinutes, aTimerSeconds
-    ; Guardar valores para la próxima apertura (campo vacío = 0).
-    aTimerMinutes := (minEdit.Value = "") ? 0 : minEdit.Value + 0
-    aTimerSeconds := (secEdit.Value = "") ? 0 : secEdit.Value + 0
+ATimerStart(atg, delayEdit) {
+    global aTimerLastDelay
+    typed := Trim(delayEdit.Value)
+    totalSec := ParseTimedDelaySeconds(typed)
+    if (totalSec < 0) {
+        atg.Opt("+OwnDialogs")
+        MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
+            , "Timer -> Play/Pausa", 48
+        return
+    }
+    if (totalSec > 0)                        ; un "0" no se guarda como prefill
+        aTimerLastDelay := typed
     atg.Destroy()
-    totalMs := (aTimerMinutes * 60 + aTimerSeconds) * 1000
-    if (totalMs > 0) {
-        SetTimer(FirePlayPause, -totalMs)    ; one-shot: dispara al cumplirse
-        ToolTip "Timer: " aTimerMinutes " min " aTimerSeconds " s -> Play/Pausa"
+    if (totalSec > 0) {
+        SetTimer(FirePlayPause, -totalSec * 1000)   ; one-shot: dispara al cumplirse
+        ToolTip "Timer: " FormatSeconds(totalSec) " -> Play/Pausa"
     } else {
-        SetTimer(FirePlayPause, 0)           ; 0:00 -> cancela lo que hubiera
-        ToolTip "Timer Play/Pausa cancelado (0:00)"
+        SetTimer(FirePlayPause, 0)                  ; 0 -> cancela lo que hubiera
+        ToolTip "Timer Play/Pausa cancelado"
     }
     SetTimer () => ToolTip(), -1500
 }
@@ -983,6 +1010,9 @@ CheckWinReleased() {
 ;                   timer la vuelve a seleccionar, no solo la ventana.
 ;   Win+Shift+F6  = GUI de administración: ver los timers corriendo (ventanas y
 ;                   pestañas), sumar o restar tiempo, abrir ya o eliminarlos.
+;   El tiempo se tipea en un solo campo, con formato:
+;   25 (minutos) | 90m | 2h | 1h30 | 45s | @17:45 (hora de
+;   reloj, mañana si ya pasó) | 0 (la abre ahora mismo, sin timer).
 ;   Al cumplirse el tiempo la ventana se restaura (si estaba minimizada) y se
 ;   activa; el timer se consume (no se repite).
 ;   Las pestañas se ubican por título vía UI Automation (UIA.ahk), igual que
@@ -997,8 +1027,7 @@ global gTimedGui     := ""        ; GUI de administración (Win+Shift+F6)
 global gTimedGuiLV   := ""
 global gTimedGuiHdr  := ""
 global gTimedGuiIds  := []        ; id del timer que corresponde a cada fila
-global gTimedLastMin := 5         ; últimos valores usados en la GUI de alta
-global gTimedLastSec := 0
+global gTimedLastDelay := "5m"    ; último tiempo tipeado en la GUI de alta
 global gTimedBrowserExes := ["chrome.exe", "firefox.exe", "msedge.exe"]
 SetTimer(CheckTimedWindows, 500)
 
@@ -1079,49 +1108,94 @@ NormalizeTabName(name) {
 
 ; tabName/exe vacíos => timer de ventana; con valor => timer de pestaña.
 OpenTimedWindowGui(hwnd, tabName := "", exe := "") {
-    global gTimedLastMin, gTimedLastSec
+    global gTimedLastDelay
     isTab := (tabName != "")
     title := ""
     if isTab
         title := tabName
     else
         try title := WinGetTitle("ahk_id " hwnd)
+    ; Prefijo + título en un solo renglón: se recorta el título para que el
+    ; conjunto entre en el ancho de la ventana (w380) sin envolverse.
+    prefix := isTab ? "Pestaña guardada (" exe "):  " : "Ventana guardada:  "
+    limit := 58 - StrLen(prefix)
+    if (limit < 20)
+        limit := 20
     shown := (title = "") ? "(sin título)"
-        : (StrLen(title) > 64 ? SubStr(title, 1, 61) "..." : title)
+        : (StrLen(title) > limit ? SubStr(title, 1, limit - 3) "..." : title)
 
-    tw := Gui("+AlwaysOnTop", isTab ? "Guardar pestaña con timer" : "Guardar ventana con timer")
-    tw.SetFont("s10", "Segoe UI")
-    tw.Add("Text", "xm w390", isTab ? "Pestaña guardada (" exe "):" : "Ventana guardada:")
-    tw.SetFont("s10 bold")
-    tw.Add("Text", "xm w390", shown)
-    tw.SetFont("s10 norm")
+    tw := Gui("+AlwaysOnTop +ToolWindow"
+        , isTab ? "Guardar pestaña con timer" : "Guardar ventana con timer")
+    tw.MarginX := 14
+    tw.MarginY := 12
+    tw.SetFont("s9", "Segoe UI")
+    tw.Add("Text", "xm w380", prefix shown)
     ; Aviso (no bloqueante) si esto mismo ya tenía un timer pendiente.
     existing := isTab ? FindTimedTabByName(tabName) : FindTimedWindowByHwnd(hwnd)
     if existing
-        tw.Add("Text", "xm w390 cRed"
-            , "Ojo: ya tenía un timer corriendo (" FormatRemaining(existing["due"]) "). Se suma otro.")
-    tw.Add("Text", "xm", (isTab ? "Volver a ella" : "Abrirla") " dentro de (minutos : segundos):")
-    minEdit := tw.Add("Edit", "xm w70 Number Limit4", gTimedLastMin)
-    tw.Add("Text", "x+8 yp+5 w12 Center", ":")
-    secEdit := tw.Add("Edit", "x+8 yp-5 w70 Number Limit2", gTimedLastSec)
-    aotChk := tw.Add("CheckBox", "xm", "Dejarla Always on top al abrirla")
-    startBtn := tw.Add("Button", "xm w120 Default", "Iniciar")
-    cancelBtn := tw.Add("Button", "x+10 w120", "Cancelar")
+        tw.Add("Text", "xm+5 y+8 w380 cRed"
+            , "Ya tenía un timer corriendo (" FormatRemaining(existing["due"]) "). Se suma otro.")
+    tw.Add("Text", "xm y+12", isTab ? "Volver a ella en:" : "Abrirla en:")
+    delayEdit := tw.Add("Edit", "xm y+4 w110", gTimedLastDelay)
+    tw.Add("Text", "x+8 yp+4 cGray", "minutos")
+    tw.Add("Text", "xm y+12 w380 cGray"
+        , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
+          . "0 la abre ahora mismo.")
+    aotChk := tw.Add("CheckBox", "xm y+12", "Dejarla Always on top al abrirla")
+    startBtn := tw.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
+    cancelBtn := tw.Add("Button", "x+10 w130", "Cancelar")
     startBtn.OnEvent("Click"
-        , (*) => TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk, tabName, exe))
+        , (*) => TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName, exe))
     cancelBtn.OnEvent("Click", (*) => tw.Destroy())
     tw.OnEvent("Close", (*) => tw.Destroy())
     tw.OnEvent("Escape", (*) => tw.Destroy())
     tw.Show()
-    minEdit.Focus()
+    delayEdit.Focus()
+    SendMessage(0x00B1, 0, -1, delayEdit)   ; EM_SETSEL: deja el valor seleccionado
 }
 
-TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk, tabName := "", exe := "") {
-    global gTimedWindows, gTimedNextId, gTimedLastMin, gTimedLastSec
+; Lee lo tipeado en la GUI de alta y devuelve segundos, o -1 si no se entiende.
+; Mismo formato que el prompt de traymond-timer.ahk:
+;   25 / 25m  -> minutos            1h30 / 1h30m -> 1 h 30 min
+;   2h        -> 2 horas            1m30 / 1m30s -> 1 min 30 s
+;   45s       -> 45 segundos        @17:45       -> a esa hora (mañana si ya pasó)
+;   0         -> ahora mismo
+ParseTimedDelaySeconds(text) {
+    s := Trim(text)
+    if (s = "")
+        return -1
+    if (SubStr(s, 1, 1) = "@") {
+        if !RegExMatch(Trim(SubStr(s, 2)), "^(\d{1,2})[:.](\d{2})$", &m)
+            return -1
+        hh := m[1] + 0, mm := m[2] + 0
+        if (hh > 23 || mm > 59)
+            return -1
+        target := FormatTime(A_Now, "yyyyMMdd") Format("{:02}{:02}00", hh, mm)
+        diff := DateDiff(target, A_Now, "Seconds")
+        if (diff <= 0)                     ; esa hora ya pasó hoy => es la de mañana
+            diff := DateDiff(DateAdd(target, 1, "Days"), A_Now, "Seconds")
+        return diff
+    }
+    if RegExMatch(s, "i)^(\d+)\s*h\s*(\d{1,2})?\s*m?$", &m)
+        return (m[1] * 60 + (m[2] = "" ? 0 : m[2] + 0)) * 60
+    if RegExMatch(s, "i)^(\d+)\s*m\s*(\d{1,2})\s*s?$", &m)
+        return m[1] * 60 + (m[2] + 0)
+    if RegExMatch(s, "i)^(\d+)\s*s$", &m)
+        return m[1] + 0
+    if RegExMatch(s, "i)^(\d+(?:[.,]\d+)?)\s*m?$", &m)
+        return Round(StrReplace(m[1], ",", ".") * 60)
+    return -1
+}
+
+TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName := "", exe := "") {
+    global gTimedWindows, gTimedNextId, gTimedLastDelay
     isTab := (tabName != "")
-    totalSec := (minEdit.Value + 0) * 60 + (secEdit.Value + 0)
-    if (totalSec <= 0) {
-        MsgBox "Ingresá un tiempo mayor a 0.", "Timer de ventana", 48
+    typed := Trim(delayEdit.Value)
+    totalSec := ParseTimedDelaySeconds(typed)
+    if (totalSec < 0) {
+        tw.Opt("+OwnDialogs")
+        MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
+            , isTab ? "Timer de pestaña" : "Timer de ventana", 48
         return
     }
     ; La pestaña puede sobrevivir a su ventana (se la arrastra a otra), así que
@@ -1131,8 +1205,8 @@ TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk, tabName := "", exe :
         tw.Destroy()
         return
     }
-    gTimedLastMin := minEdit.Value + 0
-    gTimedLastSec := secEdit.Value + 0
+    if (totalSec > 0)                      ; un "0" no se guarda como prefill
+        gTimedLastDelay := typed
     item := Map(
         "id", gTimedNextId,
         "kind", isTab ? "tab" : "win",
@@ -1144,9 +1218,15 @@ TimedWindowStart(tw, hwnd, title, minEdit, secEdit, aotChk, tabName := "", exe :
         item["tab"] := tabName
         item["exe"] := exe
     }
+    tw.Destroy()
+    ; 0 => sin cuenta regresiva: se abre en el acto, como "Abrir ahora" de la
+    ; GUI de administración. No entra a la lista de timers.
+    if (totalSec = 0) {
+        OpenTimedWindow(item)
+        return
+    }
     gTimedWindows.Push(item)
     gTimedNextId += 1
-    tw.Destroy()
     TrayTip (isTab ? "Timer de pestaña creado" : "Timer creado")
         , "Se abre en " FormatSeconds(totalSec) "`n" title "`nTimers activos: " gTimedWindows.Length, 2
     RebuildTimedWindowsGui()
@@ -1852,7 +1932,7 @@ global gHKSections := [
 
     { id: "stimer", title: "Timer → Win+Alt+S", src: "!_STARTUP_merged.ahk", items: [
         { id: "open", type: "hotkey", hk: "#!u", label: "Win + Alt + U, luego I",
-          desc: "Abre la ventana del temporizador (la I debe llegar en menos de 1 s)" } ] },
+          desc: "Abre la ventana del temporizador (la I debe llegar en menos de 1 s). Tiempo: 25, 90m, 2h, 1h30, 45s, @17:45; 0 cancela" } ] },
 
     { id: "media", title: "Multimedia y volumen", src: "pauseplay.ahk", items: [
         { id: "playpause",  type: "hotkey", hk: "^!A",             label: "Ctrl + Alt + A",        desc: "Play / Pausa" },
@@ -1869,7 +1949,7 @@ global gHKSections := [
 
     { id: "timer_media", title: "Timer para PausePlayMedia", src: "Nuevo", items: [
 	{ id: "timer_playpause", type: "hotkey", hk:"#!u", label: "Win + Alt + U, luego A",
-	  desc: "Abre la ventana del temporizador de pausa/reanudar (la A debe llegar en menos de 2 s)" } ] },
+	  desc: "Abre la ventana del temporizador de pausa/reanudar (la A debe llegar en menos de 2 s). Tiempo: 25, 90m, 2h, 1h30, 45s, @17:45; 0 cancela" } ] },
 
     { id: "tabsel", title: "Tabulación y selección", src: "right_tab.ahk · selectcellcontent.ahk · volume.ahk", items: [
         { id: "tab",     type: "hotkey", hk: "RCtrl & Numpad5", label: "Ctrl der + Numpad 5", desc: "Envía Tab" },
@@ -1914,8 +1994,8 @@ global gHKSections := [
         { id: "list",   type: "hotkey", hk: "#+F4", label: "Win + Shift + F4", desc: "Muestra la lista flotante de ventanas guardadas" } ] },
 
     { id: "timed_windows", title: "Ventanas con timer", src: "Nuevo", items: [
-        { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece" },
-        { id: "tab",   type: "hotkey", hk: "^#F6", label: "Ctrl + Win + F6",  desc: "Guarda la pestaña activa del navegador y elige en cuánto tiempo vuelve" },
+        { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece (25, 90m, 2h, 1h30, 45s, @17:45)" },
+        { id: "tab",   type: "hotkey", hk: "^#F6", label: "Ctrl + Win + F6",  desc: "Guarda la pestaña activa del navegador y elige en cuánto tiempo vuelve (25, 90m, 2h, 1h30, 45s, @17:45)" },
         { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo (sumar/restar tiempo, abrir ya, eliminar)" } ] },
 
     { id: "sheets", title: "Accesos a Google Sheets", src: "url_chrome.ahk", items: [
