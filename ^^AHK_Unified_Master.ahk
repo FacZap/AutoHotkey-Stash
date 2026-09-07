@@ -720,11 +720,14 @@ RCtrl & Numpad5::
 ; ============================================================================
 OpenProgramIniFile := A_ScriptDir "\open-program-GUI.ini"
 
+OpenProgramOrder := ["OBS", "Paint", "Notepad++", "SpeedCrunch", "PointToFix"]
+
 OpenProgramPrograms := Map(
+    "OBS", "C:\Program Files\obs-studio\bin\64bit\obs64.exe",
     "Paint", "C:\Windows\System32\mspaint.exe",
     "Notepad++", "C:\Program Files\Notepad++\notepad++.exe",
-    "OBS", "C:\Program Files\obs-studio\bin\64bit\obs64.exe",
-    "SpeedCrunch", "C:\Program Files (x86)\SpeedCrunch\speedcrunch.exe"
+    "SpeedCrunch", "C:\Program Files (x86)\SpeedCrunch\speedcrunch.exe",
+    "PointToFix", "C:\Program Files (x86)\Pointofix\Pointofix.exe"
 )
 
 for name, defaultPath in OpenProgramPrograms
@@ -743,7 +746,8 @@ ShowOpenProgramGui() {
     MyOpenProgramGui.OnEvent("Close", (*) => MyOpenProgramGui.Destroy())
     MyOpenProgramGui.SetFont("s10")
 
-    for name, path in OpenProgramPrograms {
+    for name in OpenProgramOrder {
+        path := OpenProgramPrograms[name]
         MyOpenProgramGui.Add("Button", "x10 y+10 w150", name).OnEvent("Click", MakeOpenProgramLaunchHandler(name, MyOpenProgramGui))
         MyOpenProgramGui.Add("Button", "x+5 yp w80", "Edit path").OnEvent("Click", MakeOpenProgramEditHandler(name))
     }
