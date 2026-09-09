@@ -3,7 +3,7 @@
 ; ============================================================================
 ; SimpleReminders.ahk  —  plain-text reminders with a quiet pop-up.
 ;
-;   Win+Alt+Z   open the manager GUI (write / edit / delete reminders)
+;   Win+Alt+Z   open the manager GUI (write / edit / duplicate / delete)
 ;
 ; A reminder is up to 100 characters of text plus a date and time. When the
 ; time arrives a small window appears on the center-right of the screen with
@@ -353,18 +353,21 @@ ShowManager() {
     ShowDoneCB := MainGui.Add("Checkbox", "xm y+8", "Show completed")
     ShowDoneCB.OnEvent("Click", (*) => RefreshList())
 
-    bNew   := MainGui.Add("Button", "xm y+8 w90", "&New")
-    bEdit  := MainGui.Add("Button", "x+6 yp w90", "&Edit")
-    bDel   := MainGui.Add("Button", "x+6 yp w90", "&Delete")
-    bDone  := MainGui.Add("Button", "x+6 yp w100", "Mark d&one")
-    bPurge := MainGui.Add("Button", "x+6 yp w120", "&Clear completed")
-    bClose := MainGui.Add("Button", "x+6 yp w80", "Close")
+    ; widths + the six 6 px gaps add up to the ListView's 600
+    bNew   := MainGui.Add("Button", "xm y+8 w78", "&New")
+    bEdit  := MainGui.Add("Button", "x+6 yp w78", "&Edit")
+    bDup   := MainGui.Add("Button", "x+6 yp w92", "D&uplicate")
+    bDel   := MainGui.Add("Button", "x+6 yp w80", "&Delete")
+    bDone  := MainGui.Add("Button", "x+6 yp w96", "Mark d&one")
+    bPurge := MainGui.Add("Button", "x+6 yp w78", "&Clear...")
+    bClose := MainGui.Add("Button", "x+6 yp w62", "Close")
 
     bNew.OnEvent("Click",   (*) => OpenEditor(0))
     bEdit.OnEvent("Click",  (*) => EditSelected())
+    bDup.OnEvent("Click",   (*) => DuplicateSelected())
     bDel.OnEvent("Click",   (*) => DeleteSelected())
     bDone.OnEvent("Click",  (*) => MarkSelectedDone())
-    bPurge.OnEvent("Click", (*) => ClearCompleted())
+    bPurge.OnEvent("Click", (*) => ShowClearMenu())
     bClose.OnEvent("Click", (*) => HideManager())
 
     StatusTxt := MainGui.Add("Text", "xm y+10 w600", "")
@@ -433,6 +436,15 @@ EditSelected() {
         OpenEditor(id)
 }
 
+; Opens the editor as a *new* reminder pre-filled from the selected one, so the
+; copy is only written to the CSV once Save is pressed (and it gets a fresh id).
+DuplicateSelected() {
+    if !(id := SelectedId())
+        return
+    if FindReminder(id)
+        OpenEditor(0, id)
+}
+
 DeleteSelected() {
     if !(id := SelectedId())
         return
@@ -459,6 +471,44 @@ MarkSelectedDone() {
     }
 }
 
+; ============================================================================
+; Clear...  (bulk removal)
+; ============================================================================
+
+; A MsgBox tops out at three buttons, so the chooser is its own little modal
+; Gui. Each choice runs its own confirmation before anything is written.
+ShowClearMenu() {
+    g := Gui("-MinimizeBox -MaximizeBox +Owner" MainGui.Hwnd, "Clear reminders")
+    g.SetFont("s9", "Segoe UI")
+    g.MarginX := 14, g.MarginY := 14
+
+    g.Add("Text", "xm", "What should be removed from the CSV?")
+
+    bDone  := g.Add("Button", "xm y+12 w300", "Clear &completed")
+    bFirst := g.Add("Button", "xm y+6 w300", "Clear duplicates - keep the &earliest due")
+    bLast  := g.Add("Button", "xm y+6 w300", "Clear duplicates - keep the &latest due")
+    bCncl  := g.Add("Button", "xm y+12 w300", "Cancel")
+
+    bDone.OnEvent("Click",  (*) => ClearMenuPick(g, "completed"))
+    bFirst.OnEvent("Click", (*) => ClearMenuPick(g, "earliest"))
+    bLast.OnEvent("Click",  (*) => ClearMenuPick(g, "latest"))
+    bCncl.OnEvent("Click",  (*) => g.Destroy())
+
+    g.OnEvent("Close",  (*) => g.Destroy())
+    g.OnEvent("Escape", (*) => g.Destroy())
+    g.Show()
+}
+
+; The chooser closes before the action runs, so the confirmation MsgBox is
+; owned by the manager and the chooser cannot be left hanging behind it.
+ClearMenuPick(g, action) {
+    try g.Destroy()
+    if (action = "completed")
+        ClearCompleted()
+    else
+        ClearDuplicates(action)
+}
+
 ClearCompleted() {
     global Reminders
 
@@ -483,11 +533,59 @@ ClearCompleted() {
     RefreshList()
 }
 
+; Two reminders are duplicates when they share the same status and the same
+; text (case- and whitespace-insensitive). Of each group, keep = "earliest"
+; keeps the one due soonest, "latest" the one due last; the rest are dropped.
+ClearDuplicates(keep) {
+    global Reminders
+
+    SortReminders()                            ; each group is then in due order
+
+    ; key -> index of the row to keep. "earliest" keeps the first hit in the
+    ; sorted array, "latest" lets every later hit overwrite it.
+    survivorOf := Map()
+    survivorOf.CaseSense := false
+    for i, r in Reminders {
+        key := r.status "|" RegExReplace(Trim(r.text), "\s+", " ")
+        if (!survivorOf.Has(key) || keep = "latest")
+            survivorOf[key] := i
+    }
+
+    survivors := Map()
+    for key, i in survivorOf
+        survivors[i] := true
+
+    count := Reminders.Length - survivors.Count
+    if !count {
+        MsgBox("There are no duplicate reminders.", "Simple Reminders", "Iconi Owner" MainGui.Hwnd)
+        return
+    }
+
+    which := (keep = "latest") ? "latest" : "earliest"
+    if (MsgBox("Remove " count " duplicate reminder(s), keeping the " which " due time of each?"
+             , "Simple Reminders", "YesNo Icon? Owner" MainGui.Hwnd) != "Yes")
+        return
+
+    kept := []
+    for i, r in Reminders {
+        if survivors.Has(i) {
+            kept.Push(r)
+            continue
+        }
+        ClosePopup(r.id)                       ; a pop-up for a removed row is stale
+    }
+    Reminders := kept
+    SaveReminders()
+    RefreshList()
+}
+
 ; ============================================================================
 ; New / edit reminder
 ; ============================================================================
 
-OpenEditor(id := 0) {
+; id = reminder to edit, or 0 for a new one. dupeFrom (only meaningful when
+; id = 0) is the reminder whose text and due time pre-fill the new one.
+OpenEditor(id := 0, dupeFrom := 0) {
     global EditGui, EditId, TextCtl, DateCtl, TimeCtl, CountCtl
 
     if IsObject(EditGui) {
@@ -496,12 +594,14 @@ OpenEditor(id := 0) {
     }
 
     EditId := id
-    i := id ? FindReminder(id) : 0
+    src := id ? id : dupeFrom
+    i := src ? FindReminder(src) : 0
     text  := i ? Reminders[i].text : ""
     stamp := i ? DueStamp(Reminders[i]) : DateAdd(A_Now, 15, "Minutes")
 
     owner := (IsObject(MainGui) && ManagerOpen) ? " +Owner" MainGui.Hwnd : ""
-    EditGui := Gui("-MaximizeBox -MinimizeBox" owner, id ? "Edit reminder" : "New reminder")
+    title := id ? "Edit reminder" : (i ? "Duplicate reminder" : "New reminder")
+    EditGui := Gui("-MaximizeBox -MinimizeBox" owner, title)
     EditGui.SetFont("s9", "Segoe UI")
     EditGui.MarginX := 12, EditGui.MarginY := 12
 

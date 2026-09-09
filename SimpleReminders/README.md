@@ -23,9 +23,14 @@ A list of every reminder — when it is due, how far away that is, the text and
 its status — plus buttons:
 
 - **New / Edit** — opens the editor (double-clicking a row also edits it)
+- **Duplicate** — opens the editor as a *new* reminder pre-filled with the
+  selected one's text and due time; nothing is written until you press Save,
+  and the copy gets its own id
 - **Delete** — asks for confirmation, then removes the row from the CSV
 - **Mark done** — toggles pending ↔ done
-- **Clear completed** — drops all done reminders from the CSV
+- **Clear…** — opens a small chooser: *clear completed* (drops all done
+  reminders), *clear duplicates keeping the earliest due*, *clear duplicates
+  keeping the latest due*, or cancel. Every choice confirms with a count first
 - **Show completed** — completed reminders are hidden unless this is ticked
 
 Escape or Close hides the window; the script keeps running in the tray.
