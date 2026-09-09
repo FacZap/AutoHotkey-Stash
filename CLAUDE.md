@@ -39,6 +39,7 @@ AHK v1 and v2 cannot run in the same process. The master was created to consolid
 | Meta / management | `AHK_Manager`, `_Check_Starters`, `^RUN_starters` |
 | Auxiliary (separate processes) | `ClipboardOCR`, `ColdTurkeyActivado`, `GreenshotSlowMouse`, `KillBrowsers/`, `SimpleReminders/`, `traymond-timer/` |
 | Macro recording | `MacroRecorder` |
+| Game | `RhythmGame` |
 
 ### Management scripts
 
@@ -50,7 +51,7 @@ AHK v1 and v2 cannot run in the same process. The master was created to consolid
 
 ### Auxiliary script launcher
 
-On startup the master opens a GUI (`ShowAuxScriptsGui()`) that offers the seven
+On startup the master opens a GUI (`ShowAuxScriptsGui()`) that offers the eight
 scripts that live outside it — tick any subset, or all, and launch them. The
 same window is reachable from the Manager's `Aux Scripts…` button.
 
@@ -63,10 +64,13 @@ same window is reachable from the Manager's `Aux Scripts…` button.
 | `GreenshotSlowMouse.ahk` | v2 | No hotkeys; polls for Greenshot's capture overlay and slows the pointer while it is up. Does not need Greenshot running to start. |
 | `KillBrowsers/KillBrowsers.ahk` | v2 | `Ctrl+Alt+K` |
 | `SimpleReminders/SimpleReminders.ahk` | v2 | `Win+Alt+Z` |
+| `RhythmGame.ahk` | v2 | No global hotkeys; its keys are window-scoped. Unticked by default (`rhythm_game=0`) so it never auto-launches with the master. |
 
 - None of these can be merged into the master: the two traymond scripts are
   AHK v1 (v1 and v2 cannot share a process) and the v2 ones carry their own
-  hotkeys and state. They run as separate processes, like `MacroRecorder.ahk`.
+  hotkeys and state. `RhythmGame.ahk` additionally runs a 60 fps render timer,
+  which has no business in the master's process. They run as separate
+  processes, like `MacroRecorder.ahk`.
 - Launching goes through the `.ahk` file association, i.e. the AutoHotkey UX
   launcher, which reads each script's `#Requires` and picks v1 or v2.
   `A_AhkPath` cannot be used — it is the v2 exe running the master.
@@ -99,6 +103,29 @@ Both save buttons write timestamped files to the Windows Downloads folder.
 
 It depends on `OCR.ahk`, a vendored copy of Descolada's wrapper around the
 Windows.Media.Ocr UWP API — no external OCR engine or install needed.
+
+### Rhythm game
+
+`RhythmGame.ahk` (v2, standalone) is a 4-lane osu!mania-style speed test: a
+4-beat count-in plus exactly 25 s of play, so no session reaches 30 s. Three
+difficulties (100 / 132 / 166 BPM); best score and accuracy per difficulty go
+to `RhythmGame.ini`.
+
+- **No global hotkeys.** `D F J K` and the menu keys are registered under
+  `HotIfWinActive` against the game's own hwnd, so they do not exist outside
+  its window and cannot collide with the master.
+- Drawing is plain GDI into an offscreen backbuffer, blitted in one `BitBlt`
+  with `WM_ERASEBKGND` suppressed — no Gdip library, no flicker.
+- Judgement uses `QueryPerformanceCounter`, not `A_TickCount`: the 40 ms
+  PERFECT window needs better than the latter's ~15 ms resolution.
+  `timeBeginPeriod(1)` keeps the 60 fps timer honest.
+- `SoundBeep` blocks the calling thread, which would stall the frame loop, so
+  the script generates four short WAVs into `%TEMP%\ahk_rhythm` on first run
+  and plays them through `winmm\PlaySound` asynchronously.
+- Charts are generated per run on an eighth-note grid, with note probability
+  ramping across the session; offbeats and (on HARD) two-lane chords unlock
+  partway through, and a minimum gap keeps the result playable.
+- Losing focus pauses the clock rather than eating the notes still falling.
 
 ### External utilities (bundled)
 

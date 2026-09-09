@@ -2277,7 +2277,12 @@ global gAuxScripts := [
     { id: "simple_reminders", ver: "v2", needs: "",
       label: "Simple Reminders",
       path:  A_ScriptDir "\SimpleReminders\SimpleReminders.ahk",
-      desc:  "Win+Alt+Z: recordatorios de texto con pop-up silencioso" }
+      desc:  "Win+Alt+Z: recordatorios de texto con pop-up silencioso" },
+
+    { id: "rhythm_game", ver: "v2", needs: "",
+      label: "Rhythm Speed (juego)",
+      path:  A_ScriptDir "\RhythmGame.ahk",
+      desc:  "Sin hotkeys globales: juego de ritmo de 4 carriles, sesiones de 25 segundos" }
 ]
 
 ; Qué hacer con la lista al iniciar el master. Se elige desde la misma ventana.
