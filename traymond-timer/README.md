@@ -60,7 +60,7 @@ Hotkeys (all configurable, set to `""` to disable):
 | `Win+Shift+Z` | Hide window and **ask** how long — see below |
 | `Win+Alt+Shift+Z` | Hide window with **no countdown** — plain Traymond |
 | `Win+Shift+R` | Restore everything now |
-| `Win+Shift+C` | Cancel pending countdowns, leave windows hidden |
+| `Win+Shift+C` | Cancel pending countdowns, leave windows hidden — asks first |
 
 `Win+Alt+Shift+Z` is the escape hatch: it hides the window and leaves it hidden,
 exactly as Traymond does on its own, for things you want out of the way with no
@@ -98,6 +98,13 @@ that entirely, and Cancel makes it free to change your mind.
 
 The tray icon menu also has *Restore all now*, *Pending countdowns...* (shows
 what's queued and how long is left), and *Cancel all countdowns*.
+
+Cancelling asks before it does anything. The countdowns are the only record of
+when each window was due back, and nothing on screen shows that a window is
+hidden, so a mistyped `Win+Shift+C` would otherwise lose that quietly. The
+confirmation lists what is about to be forgotten (up to eight, then "... and N
+more"), and *Keep them* is the default button — Enter, Esc and the X all keep the
+countdowns. With nothing pending it skips the dialog and just says so.
 
 ### About Win+Shift+Z
 

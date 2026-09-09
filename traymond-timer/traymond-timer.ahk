@@ -72,6 +72,7 @@ LastIntervalTick := A_TickCount
 DailyFiredOn := ""
 PromptHwnd   := 0                ; window the custom-time prompt is asking about
 PromptTitle  := ""
+CancelPromptOpen := false        ; the cancel-countdowns confirmation is on screen
 
 ; ---- one-shot command line mode -------------------------------------------
 if (A_Args.Length() > 0) {
@@ -341,18 +342,49 @@ DoRestoreAllNow:
     Notify("Restored all hidden windows")
 return
 
+; Clearing the countdowns cannot be undone - they are the only record of when
+; each hidden window was meant to come back - so it asks first. The hotkey and
+; the tray item both land here.
 DoCancelTimers:
+    if (CancelPromptOpen) {          ; already asking - just resurface it
+        Gui, CancelPrompt:Show
+        return
+    }
+    pendingCount := Pending.Count()
+    if (pendingCount = 0) {
+        Notify("No countdowns are pending")
+        return
+    }
+    CancelPromptOpen := true
+    Gui, CancelPrompt:New, +AlwaysOnTop +ToolWindow, Traymond Timer
+    Gui, CancelPrompt:Margin, 14, 12
+    Gui, CancelPrompt:Font, s9
+    Gui, CancelPrompt:Add, Text, xm w330, % "Cancel " . pendingCount . (pendingCount = 1 ? " pending countdown?" : " pending countdowns?")
+    Gui, CancelPrompt:Add, Text, xm y+10 w330, % PendingList(42, 8)
+    Gui, CancelPrompt:Add, Text, xm y+12 w330 cGray, The windows stay hidden. "Restore all now" still brings them back`, and so does double-clicking their Traymond tray icons.
+    Gui, CancelPrompt:Add, Button, xm y+14 w150 gCancelPromptOK, Cancel countdowns
+    Gui, CancelPrompt:Add, Button, x+10 w170 Default gCancelPromptNo, Keep them
+    Gui, CancelPrompt:Show
+return
+
+CancelPromptOK:
+    Gui, CancelPrompt:Destroy
+    CancelPromptOpen := false
     Pending := {}
     PendingTitle := {}
     Notify("Pending countdowns cancelled - windows stay hidden")
 return
 
+; Esc and the X keep the countdowns - the safe answer is the one you fall into.
+CancelPromptNo:
+CancelPromptGuiClose:
+CancelPromptGuiEscape:
+    Gui, CancelPrompt:Destroy
+    CancelPromptOpen := false
+return
+
 ShowPending:
-    list := ""
-    for hwnd, dueTick in Pending {
-        left := (dueTick - A_TickCount) / 60000
-        list .= Shorten(PendingTitle[hwnd], 50) . "   ->   " . FormatMinutes(left) . "`n"
-    }
+    list := PendingList(50)
     if (list = "")
         list := "Nothing is waiting to be restored."
     MsgBox, 64, Traymond Timer - pending countdowns, %list%
@@ -376,6 +408,24 @@ Shorten(text, limit := 40) {
     if (StrLen(text) > limit)
         return SubStr(text, 1, limit - 3) . "..."
     return text
+}
+
+; Renders the pending countdowns as "title   ->   time left" lines. maxRows caps
+; the list for the confirmation dialog and adds an "... and N more" tail; 0 means
+; no cap. Empty string when nothing is pending.
+PendingList(width := 50, maxRows := 0) {
+    global Pending, PendingTitle
+    list := "", shown := 0, total := 0
+    for hwnd, dueTick in Pending {
+        total++
+        if (maxRows && shown >= maxRows)
+            continue
+        shown++
+        list .= Shorten(PendingTitle[hwnd], width) . "   ->   " . FormatMinutes((dueTick - A_TickCount) / 60000) . "`n"
+    }
+    if (total > shown)
+        list .= "... and " . (total - shown) . " more`n"
+    return RTrim(list, "`n")
 }
 
 ; Reads what the user typed at the prompt and returns a number of minutes,
