@@ -642,6 +642,495 @@ RCtrl & Numpad5::
 }
 
 ; ============================================================================
+; ConvertCase.ahk  (Ctrl+F2  ->  ventana de conversión de mayúsculas/minúsculas)
+; ============================================================================
+;   Toma la selección (o, si no hay nada seleccionado, el texto del
+;   portapapeles) y abre una ventana con los 25 estilos y su preview en vivo:
+;
+;     Texto    minúsculas, MAYÚSCULAS, Tipo Título, Tipo oración, iNVERTIDO,
+;              recortar y colapsar espacios
+;     Código   camelCase, PascalCase, snake_case, SCREAMING_SNAKE_CASE,
+;              Ada_Case, kebab-case, Train-Case, COBOL-CASE, dot.case,
+;              path/case, flatcase, UPPERFLATCASE, separado por espacios
+;     Archivo  url-slug, file_name, FileName, slug con fecha adelante, nombre
+;              sin los caracteres que Windows rechaza, y ASCII sin acentos
+;
+;   "Reemplazar" pega el resultado sobre la selección en la ventana de origen
+;   (Enter, o doble clic en un estilo), "Copiar" lo deja en el portapapeles y
+;   Esc cierra sin tocar nada. Las cajas Origen y Resultado son editables.
+;
+;   El portapapeles se guarda y se restaura alrededor de la copia y del pegado.
+;
+;   Las funciones van prefijadas con Cc porque los nombres naturales (Join,
+;   Flash, ToUpperCase) son demasiado genéricos para un archivo compartido.
+;   El script suelto ConvertCase.ahk es el mismo código sin el prefijo.
+; ============================================================================
+
+global CcGui := ""          ; la ventana, mientras está abierta
+global CcSource := ""       ; Edit de origen
+global CcList := ""         ; ListView de estilos + previews
+global CcResult := ""       ; Edit de resultado
+global CcLblSource := "", CcLblStyle := "", CcLblResult := ""
+global CcButtons := []      ; Reemplazar / Copiar / Cancelar, para el layout
+global CcTargetHwnd := 0    ; ventana de donde vino el texto, para pegar ahí
+global CcHadSelection := false
+
+^F2::CcOpen()
+
+CcOpen() {
+    global CcTargetHwnd, CcHadSelection
+
+    hwnd := WinExist("A")
+    text := CcGetSelectedText()
+
+    ; Sin selección: se cae al texto del portapapeles, así una copia hecha en
+    ; cualquier lado también se puede convertir.
+    if (text = "") {
+        CcHadSelection := false
+        try text := A_Clipboard
+    } else {
+        CcHadSelection := true
+    }
+
+    CcTargetHwnd := hwnd
+    CcShowGui(text)
+}
+
+; Grupo, nombre del estilo, función. El orden acá es el orden de la lista; el
+; grupo solo separa visualmente las tres familias.
+CcStyles() {
+    static styles := [
+        ["Texto",   "minúsculas",              CcToLowerCase],
+        ["Texto",   "MAYÚSCULAS",              CcToUpperCase],
+        ["Texto",   "Tipo Título",             CcToTitleCase],
+        ["Texto",   "Tipo oración",            CcToSentenceCase],
+        ["Texto",   "iNVERTIDO",               CcToInvertedCase],
+        ["Texto",   "Recortar espacios",       CcToTrimmed],
+
+        ["Código",  "camelCase",               CcToCamelCase],
+        ["Código",  "PascalCase",              CcToPascalCase],
+        ["Código",  "snake_case",              CcToSnakeCase],
+        ["Código",  "SCREAMING_SNAKE_CASE",    CcToScreamingSnake],
+        ["Código",  "Ada_Case",                CcToAdaCase],
+        ["Código",  "kebab-case",              CcToKebabCase],
+        ["Código",  "Train-Case (header HTTP)", CcToTrainCase],
+        ["Código",  "COBOL-CASE",              CcToCobolCase],
+        ["Código",  "dot.case",                CcToDotCase],
+        ["Código",  "path/case",               CcToPathCase],
+        ["Código",  "flatcase",                CcToFlatCase],
+        ["Código",  "UPPERFLATCASE",           CcToUpperFlatCase],
+        ["Código",  "separado por espacios",   CcToSpaceCase],
+
+        ["Archivo", "url-slug",                CcToUrlSlug],
+        ["Archivo", "file_name",               CcToFileSnake],
+        ["Archivo", "FileName",                CcToFilePascal],
+        ["Archivo", "yyyy-mm-dd-slug",         CcToDatedSlug],
+        ["Archivo", "nombre válido en Windows", CcToWindowsSafeName],
+        ["Archivo", "ASCII (sin acentos)",     CcStripAccents],
+    ]
+    return styles
+}
+
+CcShowGui(text) {
+    global CcGui, CcSource, CcList, CcResult
+    global CcLblSource, CcLblStyle, CcLblResult, CcButtons
+
+    if CcGui {
+        try CcGui.Destroy()
+        CcGui := ""
+    }
+
+    g := Gui("+AlwaysOnTop +Resize +MinSize560x460", "Convertir mayúsculas")
+    g.SetFont("s10", "Segoe UI")
+    CcGui := g
+
+    CcLblSource := g.AddText("w480", "Origen:")
+    CcSource := g.AddEdit("w480 -Wrap +HScroll", text)
+    CcSource.OnEvent("Change", (*) => CcRefreshPreviews())
+
+    CcLblStyle := g.AddText("w480", "Estilo:")
+    CcList := g.AddListView("w480 -Multi +Grid NoSortHdr", ["", "Estilo", "Preview"])
+    CcList.OnEvent("ItemSelect", (*) => CcShowSelected())
+    CcList.OnEvent("DoubleClick", (*) => CcApplyResult())
+
+    CcLblResult := g.AddText("w480", "Resultado:")
+    CcResult := g.AddEdit("w480 -Wrap +HScroll")
+
+    CcButtons := []
+    CcButtons.Push(g.AddButton("w150 Default", "Reemplazar"))
+    CcButtons.Push(g.AddButton("w150", "Copiar"))
+    CcButtons.Push(g.AddButton("w150", "Cancelar"))
+    CcButtons[1].OnEvent("Click", (*) => CcApplyResult())
+    CcButtons[2].OnEvent("Click", (*) => CcCopyResult())
+    CcButtons[3].OnEvent("Click", (*) => CcCloseGui())
+
+    g.OnEvent("Close", (*) => CcCloseGui())
+    g.OnEvent("Escape", (*) => CcCloseGui())
+    g.OnEvent("Size", (guiObj, minMax, w, h) => minMax != -1 ? CcLayout(w, h) : "")
+
+    CcRefreshPreviews()
+    CcList.Modify(1, "Select Focus")
+    CcShowSelected()
+
+    CcLayout(560, 520)
+    g.Show("w560 h520")
+    CcList.Focus()
+    ; Enter tiene que aplicar también con el caret en una de las cajas de
+    ; texto, que es lo que un botón Default por sí solo no cubre.
+    HotIfWinActive("ahk_id " g.Hwnd)
+    Hotkey "Enter", (*) => CcApplyResult(), "On"
+    Hotkey "NumpadEnter", (*) => CcApplyResult(), "On"
+    HotIfWinActive()
+}
+
+; Un solo lugar para el layout, usado en el armado inicial y en cada resize:
+; las dos cajas de texto y la fila de botones tienen alto fijo, y el ListView
+; se queda con todo el espacio vertical que sobra.
+CcLayout(w, h) {
+    global CcSource, CcList, CcResult, CcLblSource, CcLblStyle, CcLblResult, CcButtons
+
+    static margin := 10, labelH := 20, editH := 58, btnH := 32, gap := 6
+
+    inner := w - margin * 2
+    if (inner < 240)
+        return
+
+    ; Desde arriba: etiqueta + Origen, etiqueta, y después la lista.
+    y := margin
+    CcLblSource.Move(margin, y, inner, labelH)
+    y += labelH
+    CcSource.Move(margin, y, inner, editH)
+    y += editH + gap
+    CcLblStyle.Move(margin, y, inner, labelH)
+    y += labelH
+
+    ; Desde abajo: botones, Resultado y su etiqueta. Lo que queda es la lista.
+    btnY := h - margin - btnH
+    resultY := btnY - margin - editH
+    lblResultY := resultY - labelH
+
+    listH := lblResultY - gap - y
+    if (listH < 80)
+        listH := 80
+
+    CcList.Move(margin, y, inner, listH)
+    CcLblResult.Move(margin, lblResultY, inner, labelH)
+    CcResult.Move(margin, resultY, inner, editH)
+
+    btnW := (inner - margin * 2) // 3
+    x := margin
+    for btn in CcButtons {
+        btn.Move(x, btnY, btnW, btnH)
+        x += btnW + margin
+    }
+
+    CcList.ModifyCol(1, 60)
+    CcList.ModifyCol(2, 176)
+    CcList.ModifyCol(3, inner - 60 - 176 - 24)
+    CcList.Redraw()
+}
+
+; Recalcula todos los previews a partir del texto de Origen.
+CcRefreshPreviews() {
+    global CcSource, CcList
+
+    text := CcSource.Value
+    sel := CcList.GetNext(0, "F")
+
+    CcList.Opt("-Redraw")
+    CcList.Delete()
+    for style in CcStyles()
+        CcList.Add(, style[1], style[2], CcPreviewOf(style[3](text)))
+    if (sel > 0)
+        CcList.Modify(sel, "Select Focus")
+    CcList.Opt("+Redraw")
+
+    CcShowSelected()
+}
+
+; Los saltos de línea y los tabs romperían la fila de una sola línea, así que
+; en el preview se muestran como símbolos.
+CcPreviewOf(s) {
+    s := StrReplace(s, "`r`n", " ⏎ ")
+    s := StrReplace(s, "`n", " ⏎ ")
+    s := StrReplace(s, "`t", " → ")
+    return s
+}
+
+CcShowSelected() {
+    global CcSource, CcList, CcResult
+
+    row := CcList.GetNext(0, "F")
+    if (row < 1)
+        row := CcList.GetNext(0)
+    if (row < 1) {
+        CcResult.Value := ""
+        return
+    }
+    styles := CcStyles()
+    if (row > styles.Length)
+        return
+    CcResult.Value := styles[row][3](CcSource.Value)
+}
+
+CcApplyResult() {
+    global CcResult, CcTargetHwnd, CcHadSelection
+
+    text := CcResult.Value
+    if (text = "") {
+        CcFlash("No hay nada para pegar.")
+        return
+    }
+    if !CcTargetHwnd || !WinExist("ahk_id " CcTargetHwnd) {
+        CcFlash("La ventana de origen ya no existe: se copia en su lugar.")
+        CcCopyResult()
+        return
+    }
+
+    CcCloseGui()
+
+    try WinActivate("ahk_id " CcTargetHwnd)
+    if !WinWaitActive("ahk_id " CcTargetHwnd, , 1) {
+        CcSetClipboard(text)
+        CcFlash("No se pudo activar la ventana: resultado copiado.")
+        return
+    }
+
+    CcPasteText(text)
+    ; Sin selección no había nada que sobreescribir, y eso conviene decirlo:
+    ; el texto entró en la posición del caret.
+    if !CcHadSelection
+        CcFlash("Pegado en el caret (no había nada seleccionado).")
+}
+
+CcCopyResult() {
+    global CcResult
+
+    text := CcResult.Value
+    if (text = "") {
+        CcFlash("No hay nada para copiar.")
+        return
+    }
+    CcSetClipboard(text)
+    CcCloseGui()
+    CcFlash("Copiado.")
+}
+
+CcCloseGui() {
+    global CcGui
+
+    if !CcGui
+        return
+    HotIfWinActive("ahk_id " CcGui.Hwnd)
+    try Hotkey "Enter", "Off"
+    try Hotkey "NumpadEnter", "Off"
+    HotIfWinActive()
+    try CcGui.Destroy()
+    CcGui := ""
+}
+
+; Copia la selección sin dejarla en el portapapeles.
+CcGetSelectedText() {
+    saved := ClipboardAll()
+    A_Clipboard := ""
+    Send "^c"
+    got := ClipWait(0.6, 0)
+    text := got ? A_Clipboard : ""
+    A_Clipboard := saved
+    return text
+}
+
+; Se pega por portapapeles y no con SendText: es instantáneo sin importar el
+; largo, y no se equivoca con acentos ni con teclas muertas.
+CcPasteText(text) {
+    saved := ClipboardAll()
+    A_Clipboard := text
+    if !ClipWait(1, 1) {
+        A_Clipboard := saved
+        CcFlash("El portapapeles está ocupado: no se pegó nada.")
+        return
+    }
+    Send "^v"
+    Sleep 200          ; que el destino lea el portapapeles antes de devolverlo
+    A_Clipboard := saved
+}
+
+CcSetClipboard(text) {
+    A_Clipboard := text
+    ClipWait(1, 1)
+}
+
+CcFlash(msg) {
+    ToolTip msg
+    SetTimer () => ToolTip(), -1600
+}
+
+; ---- Conversiones -----------------------------------------------------------
+;
+; Los estilos por palabras (camel, snake, kebab, …) pasan todos por
+; CcSplitWords, así cualquier forma de entrada convierte a cualquier otra:
+; THIS_IS_AN_EXAMPLE, thisIsAnExample y "this is an example" dan las mismas
+; cuatro palabras.
+
+; Corta por separadores o, cuando el texto no tiene ninguno, por las jorobas
+; del camelCase.
+;
+; Las jorobas se consultan solo para texto sin separadores a propósito. El
+; texto que ya trae separadores ya dijo dónde terminan sus palabras, y
+; respetarlo es lo que deja intacta una entrada tipeada de forma errática:
+; tHIS_Is_an_ExAmPLE da cuatro palabras, no las ocho que sugieren las jorobas.
+CcSplitWords(s) {
+    if !RegExMatch(s, "[^\p{L}\p{N}]") {
+        ; aB y 1B -> a B / 1 B     (minúscula o dígito seguidos de mayúscula)
+        s := RegExReplace(s, "(\p{Ll}|\p{N})(\p{Lu})", "$1 $2")
+        ; HTMLParser -> HTML Parser  (tira de mayúsculas + mayúscula-minúscula)
+        s := RegExReplace(s, "(\p{Lu})(\p{Lu}\p{Ll})", "$1 $2")
+    }
+    s := RegExReplace(s, "[^\p{L}\p{N}]+", " ")
+
+    words := []
+    for w in StrSplit(Trim(s), " ")
+        if (w != "")
+            words.Push(w)
+    return words
+}
+
+CcJoin(words, sep, mode) {
+    out := ""
+    for i, w in words {
+        switch mode {
+            case "lower": w := StrLower(w)
+            case "upper": w := StrUpper(w)
+            case "cap":   w := StrUpper(SubStr(w, 1, 1)) StrLower(SubStr(w, 2))
+        }
+        out .= (i > 1 ? sep : "") w
+    }
+    return out
+}
+
+CcToLowerCase(s) => StrLower(s)
+CcToUpperCase(s) => StrUpper(s)
+
+CcToTitleCase(s) {
+    out := ""
+    prevAlnum := false
+    loop parse s {
+        ch := A_LoopField
+        isAlnum := RegExMatch(ch, "[\p{L}\p{N}]") > 0
+        out .= (isAlnum && !prevAlnum) ? StrUpper(ch) : StrLower(ch)
+        prevAlnum := isAlnum
+    }
+    return out
+}
+
+; Primera letra de cada oración, el resto en minúscula. Una oración empieza al
+; principio del texto y después de . ! ? o de un salto de línea.
+CcToSentenceCase(s) {
+    s := StrLower(s)
+    out := ""
+    atStart := true
+    loop parse s {
+        ch := A_LoopField
+        if (atStart && RegExMatch(ch, "[\p{L}\p{N}]")) {
+            out .= StrUpper(ch)
+            atStart := false
+            continue
+        }
+        out .= ch
+        if InStr(".!?`n", ch)
+            atStart := true
+    }
+    return out
+}
+
+CcToInvertedCase(s) {
+    out := ""
+    loop parse s {
+        ch := A_LoopField
+        up := StrUpper(ch)
+        out .= (ch == up) ? StrLower(ch) : up
+    }
+    return out
+}
+
+CcToCamelCase(s) {
+    words := CcSplitWords(s)
+    if !words.Length
+        return ""
+    out := StrLower(words[1])
+    loop words.Length - 1
+        out .= StrUpper(SubStr(words[A_Index + 1], 1, 1)) StrLower(SubStr(words[A_Index + 1], 2))
+    return out
+}
+
+CcToPascalCase(s) => CcJoin(CcSplitWords(s), "", "cap")
+CcToSnakeCase(s) => CcJoin(CcSplitWords(s), "_", "lower")
+CcToScreamingSnake(s) => CcJoin(CcSplitWords(s), "_", "upper")
+CcToAdaCase(s) => CcJoin(CcSplitWords(s), "_", "cap")
+CcToKebabCase(s) => CcJoin(CcSplitWords(s), "-", "lower")
+CcToTrainCase(s) => CcJoin(CcSplitWords(s), "-", "cap")
+CcToCobolCase(s) => CcJoin(CcSplitWords(s), "-", "upper")
+CcToDotCase(s) => CcJoin(CcSplitWords(s), ".", "lower")
+CcToPathCase(s) => CcJoin(CcSplitWords(s), "/", "lower")
+CcToFlatCase(s) => CcJoin(CcSplitWords(s), "", "lower")
+CcToUpperFlatCase(s) => CcJoin(CcSplitWords(s), "", "upper")
+CcToSpaceCase(s) => CcJoin(CcSplitWords(s), " ", "lower")
+
+; No toca las mayúsculas: saca los blancos de los extremos y aplasta las
+; corridas de espacios y tabs, que es lo que suele necesitar el texto pegado.
+CcToTrimmed(s) => Trim(RegExReplace(s, "[ \t]+", " "))
+
+; ---- Nombres de archivo y de URL --------------------------------------------
+;
+; Estos pasan primero por CcStripAccents: un nombre que tiene que sobrevivir a
+; una URL, una rama de git, una clave de S3 o el filesystem de otra persona
+; está más seguro en ASCII pelado.
+
+CcToUrlSlug(s) => CcJoin(CcSplitWords(CcStripAccents(s)), "-", "lower")
+CcToFileSnake(s) => CcJoin(CcSplitWords(CcStripAccents(s)), "_", "lower")
+CcToFilePascal(s) => CcJoin(CcSplitWords(CcStripAccents(s)), "", "cap")
+
+; La fecha de hoy adelante del slug, para el estilo de nombre de nota fechada.
+CcToDatedSlug(s) {
+    slug := CcToUrlSlug(s)
+    return FormatTime(A_Now, "yyyy-MM-dd") (slug = "" ? "" : "-" slug)
+}
+
+; La opción menos destructiva: deja las palabras, los espacios y las
+; mayúsculas como se tipearon, y solo saca lo que Windows no acepta en un
+; nombre — \ / : * ? " < > | — más los puntos y espacios finales que el
+; Explorador se come en silencio.
+CcToWindowsSafeName(s) {
+    s := StrReplace(s, "`r`n", " ")
+    s := StrReplace(s, "`n", " ")
+    s := StrReplace(s, "`t", " ")
+    s := RegExReplace(s, '[\\/:*?"<>|]', "-")
+    s := RegExReplace(s, "[ \t]+", " ")
+    s := RegExReplace(s, "-{2,}", "-")
+    ; Un guion en el lugar de un carácter que se sacó es solo ruido, en
+    ; cualquiera de los dos extremos.
+    return RegExReplace(RegExReplace(Trim(s), "^-+"), "[-. ]+$")
+}
+
+; Baja las letras latinas acentuadas a su base ASCII y deja todo lo demás
+; (mayúsculas, separadores, puntuación) como está.
+CcStripAccents(s) {
+    static from := "áàäâãåéèëêíìïîóòöôõøúùüûýÿñçšžÁÀÄÂÃÅÉÈËÊÍÌÏÎÓÒÖÔÕØÚÙÜÛÝÑÇŠŽ"
+    static to   := "aaaaaaeeeeiiiioooooouuuuyyncszAAAAAAEEEEIIIIOOOOOOUUUUYNCSZ"
+    static pairs := Map("ß", "ss", "æ", "ae", "œ", "oe", "Æ", "AE", "Œ", "OE", "Ð", "D", "ð", "d", "þ", "th", "Þ", "Th")
+
+    for bad, good in pairs
+        s := StrReplace(s, bad, good)
+
+    out := ""
+    loop parse s {
+        pos := InStr(from, A_LoopField, true)
+        out .= pos ? SubStr(to, pos, 1) : A_LoopField
+    }
+    return out
+}
+
+; ============================================================================
 ; volume.ahk
 ; ============================================================================
 #WheelUp::Send "{Volume_Up}"
@@ -1960,6 +2449,10 @@ global gHKSections := [
         { id: "cell",    type: "hotkey", hk: "!F2",             label: "Alt + F2",            desc: "Backspace + Ctrl+Z (limpia una celda y deshace)" },
         { id: "volup",   type: "hotkey", hk: "#WheelUp",        label: "Win + Rueda arriba",  desc: "Sube el volumen" },
         { id: "voldown", type: "hotkey", hk: "#WheelDown",      label: "Win + Rueda abajo",   desc: "Baja el volumen" } ] },
+
+    { id: "convert_case", title: "Convertir mayúsculas/minúsculas", src: "ConvertCase.ahk", items: [
+        { id: "gui", type: "hotkey", hk: "^F2", label: "Ctrl + F2",
+          desc: "Abre la ventana con los 25 estilos (texto, código, nombres de archivo) para el texto seleccionado" } ] },
 
     { id: "macro_name", title: "Macro de nombre/firma", src: "macro_insta_name.ahk", items: [
         { id: "main", type: "hotkey", hk: "^!x",  label: "Ctrl + Alt + X",

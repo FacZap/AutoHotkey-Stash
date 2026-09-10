@@ -250,6 +250,15 @@
     <tr><td><span class="key">Win + Rueda abajo</span></td><td class="desc">Baja el volumen.</td></tr>
   </table>
 
+  <h2>Convertir mayúsculas/minúsculas <span class="src">ConvertCase.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + F2</span></td><td class="desc">Copia el texto seleccionado (si no hay nada seleccionado, toma el del portapapeles) y abre una ventana con 25 estilos y el preview en vivo de cada uno. La lista está agrupada en <b>Texto</b> (minúsculas, MAYÚSCULAS, Tipo Título, Tipo oración, iNVERTIDO, recortar y colapsar espacios), <b>Código</b> (<code class="inline">camelCase</code>, <code class="inline">PascalCase</code>, <code class="inline">snake_case</code>, <code class="inline">SCREAMING_SNAKE_CASE</code>, <code class="inline">Ada_Case</code>, <code class="inline">kebab-case</code>, <code class="inline">Train-Case</code>, <code class="inline">COBOL-CASE</code>, <code class="inline">dot.case</code>, <code class="inline">path/case</code>, <code class="inline">flatcase</code>, <code class="inline">UPPERFLATCASE</code>, separado por espacios) y <b>Archivo</b> (<code class="inline">url-slug</code>, <code class="inline">file_name</code>, <code class="inline">FileName</code>, slug con la fecha de hoy adelante, nombre sin los caracteres que Windows rechaza, y ASCII sin acentos). Las cajas Origen y Resultado son editables, así que la ventana también sirve de borrador cuando no hay selección.</td></tr>
+    <tr><td><span class="key">Enter</span> o <span class="key">doble clic</span> <span class="scope">(dentro de la ventana)</span></td><td class="desc">"Reemplazar": activa la ventana de origen y pega el resultado sobre la selección. Si no había nada seleccionado, lo pega en la posición del cursor y lo avisa con un tooltip.</td></tr>
+    <tr><td><span class="key">Esc</span> <span class="scope">(dentro de la ventana)</span></td><td class="desc">Cierra sin tocar nada. El botón "Copiar" deja el resultado en el portapapeles y también cierra.</td></tr>
+  </table>
+  <p class="scope">El portapapeles se guarda y se restaura alrededor de la copia y del pegado, así que lo que hubiera ahí sobrevive a la conversión. Los estilos por palabras cortan por los separadores del texto y, solo si no hay ninguno, por las jorobas del camelCase: por eso <code class="inline">tHIS_Is_an_ExAmPLE</code> da <code class="inline">ThisIsAnExample</code> y no ocho palabras.</p>
+
   <h2>Macro de nombre/firma <span class="src">macro_insta_name.ahk</span></h2>
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>

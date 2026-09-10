@@ -153,7 +153,7 @@ to `RhythmGame.ini`.
 
 **Inter-process messaging:** `AHK_Manager.ahk` uses `PostMessage` to send control signals (Reload, Suspend, Pause) to other AHK processes by hwnd.
 
-**Clipboard manipulation:** `ConvertCase.ahk` saves/restores clipboard to avoid clobbering user content during text transformations.
+**Clipboard manipulation:** `Ctrl+F2` opens a case-converter GUI (in the master, and also as the standalone `ConvertCase.ahk`): it grabs the selection, previews all 25 styles (text / code / file-name families) and pastes the chosen one back. It saves/restores the clipboard around both the copy and the paste to avoid clobbering user content. In the master the functions carry a `Cc` prefix — the natural names (`Join`, `Flash`, `ToUpperCase`) are too generic for a shared file; the standalone script is the same code without it.
 
 ## Hardcoded Paths to Be Aware Of
 
