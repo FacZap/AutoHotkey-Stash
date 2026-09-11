@@ -39,7 +39,7 @@ global TextCtl := "", DateCtl := "", TimeCtl := "", CountCtl := ""
 global Popups := Map()             ; reminder id -> Gui (currently shown pop-up)
 
 global SnoozeChoices := ["5 minutes", "10 minutes", "15 minutes", "30 minutes"
-                       , "1 hour", "2 hours", "4 hours", "Tomorrow 09:00"]
+                       , "1 hour", "2 hours", "4 hours", "Today 16:00", "Tomorrow 09:00", "Tomorrow 16:00", "Custom..."]
 global DefaultSnooze := 2          ; 1-based index into SnoozeChoices
 
 ; ============================================================================
@@ -311,6 +311,29 @@ DismissReminder(id) {
         RefreshList()
 }
 
+ChooseForUntil(promptText := "Choose an option:", title := "My Title") {
+    result := "Cancel"  ; default if closed via X or Escape
+
+    g := Gui("+AlwaysOnTop +Owner", title)
+    g.SetFont("s10")
+    g.AddText("w280", promptText)
+
+    btnFor    := g.AddButton("w85 y+15", "For")
+    btnUntil  := g.AddButton("x+10 w85", "Until")
+    btnCancel := g.AddButton("x+10 w85", "Cancel")
+
+    btnFor.OnEvent("Click",    (*) => (result := "For",    g.Destroy()))
+    btnUntil.OnEvent("Click",  (*) => (result := "Until",  g.Destroy()))
+    btnCancel.OnEvent("Click", (*) => (result := "Cancel", g.Destroy()))
+    g.OnEvent("Close",  (*) => g.Destroy())
+    g.OnEvent("Escape", (*) => g.Destroy())
+
+    g.Show("AutoSize")
+    WinWaitClose("ahk_id " g.Hwnd)  ; blocks until the Gui closes
+
+    return result
+}
+
 SnoozeStamp(choice) {
     switch choice {
         case "5 minutes":  return DateAdd(A_Now, 5,  "Minutes")
@@ -320,7 +343,63 @@ SnoozeStamp(choice) {
         case "1 hour":     return DateAdd(A_Now, 1,  "Hours")
         case "2 hours":    return DateAdd(A_Now, 2,  "Hours")
         case "4 hours":    return DateAdd(A_Now, 4,  "Hours")
+        case "Today 16:00": return SubStr(A_Now, 1, 8) "160000"
         case "Tomorrow 09:00": return SubStr(DateAdd(A_Now, 1, "Days"), 1, 8) "090000"
+        case "Tomorrow 16:00": return SubStr(DateAdd(A_Now, 1, "Days"), 1, 8) "160000"
+        case "Custom...":
+            result := ChooseForUntil("Choose an option:", "My Title")
+            if (result = "For"){
+                ib := InputBox("Enter a duration (e.g. 1h30m, 45m, 2h)", "Custom snooze")
+                if (ib.Result = "Cancel")
+                    return DateAdd(A_Now, 2, "Minutes")
+
+                custom := Trim(ib.Value)
+                if (custom = "")
+                    return DateAdd(A_Now, 2, "Minutes")
+
+                totalMinutes := 0
+                if RegExMatch(custom, "^(\d+)h(\d+)m$", &m) {
+                    totalMinutes := (m[1] * 60) + m[2]
+                } else if RegExMatch(custom, "^(\d+)h$", &m) {
+                    totalMinutes := m[1] * 60
+                } else if RegExMatch(custom, "^(\d+)m$", &m) {
+                    totalMinutes := m[1]
+                } else if RegExMatch(custom, "^(\d+)$", &m) {
+                    totalMinutes := m[1]
+                } else {
+                    MsgBox("Invalid format. Use like 1h30m, 45m, or 2h.", "Simple Reminders", "Icon!")
+                    return DateAdd(A_Now, 10, "Minutes")
+                }
+
+                return DateAdd(A_Now, totalMinutes, "Minutes")
+            }
+            else if (result = "Until"){
+                ib := InputBox("Enter a snooze time (((yyyy/yy)-MM-dd) HH:mm)", "Custom snooze")
+                if (ib.Result = "Cancel")
+                    return DateAdd(A_Now, 2, "Minutes")
+
+                custom := ib.Value
+                if (custom = "")
+                    return DateAdd(A_Now, 2, "Minutes")
+
+                if RegExMatch(custom, "^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m) {
+                    yyyy := m[1], MM := m[2], dd := m[3], HH := m[4], mi := m[5]
+                } else if RegExMatch(custom, "^(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m) {
+                    yyyy := "20" m[1], MM := m[2], dd := m[3], HH := m[4], mi := m[5]
+                } else if RegExMatch(custom, "^(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m) {
+                    yyyy := A_YYYY, MM := m[1], dd := m[2], HH := m[3], mi := m[4]
+                } else if RegExMatch(custom, "^(\d{2}):(\d{2})$", &m) {
+                    yyyy := A_YYYY, MM := A_MM, dd := A_DD, HH := m[1], mi := m[2]
+                } else {
+                    MsgBox("Invalid format. Use (yyyy)(yy)-MM-dd HH:mm.", "Simple Reminders", "Icon!")
+                    return DateAdd(A_Now, 10, "Minutes")
+                }
+
+                return yyyy MM dd HH mi "00"
+            }
+            else if (result = "Cancel")
+                return DateAdd(A_Now, 2, "Minutes")
+                
     }
     return DateAdd(A_Now, 10, "Minutes")
 }
