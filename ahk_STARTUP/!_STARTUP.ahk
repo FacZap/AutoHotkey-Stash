@@ -270,6 +270,21 @@ Return
 Return
 
 ; ============================================================
+;  Firefox: buscar en pestanas abiertas (Ctrl+Shift+A)
+;    Enfoca la barra de direcciones (Alt+D), espera 50 ms y
+;    escribe "@tabs " para activar la busqueda de pestanas.
+;  Solo activo con una ventana de Firefox al frente.
+; ============================================================
+
+#If WinActive("ahk_exe firefox.exe")
+^+a::
+    SendInput !d
+    Sleep 50
+    SendInput @tabs{Space}
+Return
+#If
+
+; ============================================================
 ;  Caps como Enter / Tab
 ; ============================================================
 
