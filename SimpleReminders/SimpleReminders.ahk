@@ -37,6 +37,7 @@ global EditGui := "", EditId := 0
 global TextCtl := "", DateCtl := "", TimeCtl := "", CountCtl := ""
 
 global Popups := Map()             ; reminder id -> Gui (currently shown pop-up)
+global SnoozingIds := Map()        ; reminder id -> true while its wizard is open
 
 global SnoozeChoices := ["5 minutes", "10 minutes", "15 minutes", "30 minutes"
                        , "1 hour", "2 hours", "4 hours", "Today 16:00", "Tomorrow 09:00", "Tomorrow 16:00", "Custom..."]
@@ -229,6 +230,8 @@ CheckDueReminders(*) {
             continue
         if Popups.Has(r.id)                       ; its pop-up is already up
             continue
+        if SnoozingIds.Has(r.id)                  ; its snooze wizard is open
+            continue
         if (DateDiff(DueStamp(r), now, "Seconds") <= 0)
             ShowPopup(r)
     }
@@ -290,11 +293,26 @@ ClosePopup(id) {
 }
 
 SnoozeReminder(id, choice) {
-    i := FindReminder(id)
     ClosePopup(id)
-    if !i
+    if !FindReminder(id)
         return
-    Reminders[i].due := StampToText(SnoozeStamp(choice))
+
+    ; "Custom..." opens a wizard that blocks on WinWaitClose, which the 15 s
+    ; timer interrupts - and the reminder is still pending and overdue, so
+    ; CheckDueReminders would pop a duplicate on top of it. Keyed by id, not a
+    ; single flag, so a second reminder's wizard can be opened over this one.
+    SnoozingIds[id] := true
+    try {
+        stamp := SnoozeStamp(choice)
+    } finally {
+        SnoozingIds.Delete(id)
+    }
+
+    ; The list may have been reloaded, re-sorted or had rows deleted while the
+    ; wizard was up, so the index has to be resolved again afterwards.
+    if !(i := FindReminder(id))
+        return
+    Reminders[i].due := StampToText(stamp)
     SaveReminders()
     if ManagerOpen
         RefreshList()
@@ -311,15 +329,15 @@ DismissReminder(id) {
         RefreshList()
 }
 
-ChooseForUntil(promptText := "Choose an option:", title := "My Title") {
+ChooseForUntil(promptText := "Choose an option:", title := "Custom snooze") {
     result := "Cancel"  ; default if closed via X or Escape
 
     g := Gui("+AlwaysOnTop +Owner", title)
     g.SetFont("s10")
     g.AddText("w280", promptText)
 
-    btnFor    := g.AddButton("w85 y+15", "For")
-    btnUntil  := g.AddButton("x+10 w85", "Until")
+    btnFor    := g.AddButton("w85 y+15", "For...")
+    btnUntil  := g.AddButton("x+10 w85", "Until...")
     btnCancel := g.AddButton("x+10 w85", "Cancel")
 
     btnFor.OnEvent("Click",    (*) => (result := "For",    g.Destroy()))
@@ -346,63 +364,149 @@ SnoozeStamp(choice) {
         case "Today 16:00": return SubStr(A_Now, 1, 8) "160000"
         case "Tomorrow 09:00": return SubStr(DateAdd(A_Now, 1, "Days"), 1, 8) "090000"
         case "Tomorrow 16:00": return SubStr(DateAdd(A_Now, 1, "Days"), 1, 8) "160000"
-        case "Custom...":
-            result := ChooseForUntil("Choose an option:", "My Title")
-            if (result = "For"){
-                ib := InputBox("Enter a duration (e.g. 1h30m, 45m, 2h)", "Custom snooze")
-                if (ib.Result = "Cancel")
-                    return DateAdd(A_Now, 2, "Minutes")
-
-                custom := Trim(ib.Value)
-                if (custom = "")
-                    return DateAdd(A_Now, 2, "Minutes")
-
-                totalMinutes := 0
-                if RegExMatch(custom, "^(\d+)h(\d+)m$", &m) {
-                    totalMinutes := (m[1] * 60) + m[2]
-                } else if RegExMatch(custom, "^(\d+)h$", &m) {
-                    totalMinutes := m[1] * 60
-                } else if RegExMatch(custom, "^(\d+)m$", &m) {
-                    totalMinutes := m[1]
-                } else if RegExMatch(custom, "^(\d+)$", &m) {
-                    totalMinutes := m[1]
-                } else {
-                    MsgBox("Invalid format. Use like 1h30m, 45m, or 2h.", "Simple Reminders", "Icon!")
-                    return DateAdd(A_Now, 10, "Minutes")
-                }
-
-                return DateAdd(A_Now, totalMinutes, "Minutes")
-            }
-            else if (result = "Until"){
-                ib := InputBox("Enter a snooze time (((yyyy/yy)-MM-dd) HH:mm)", "Custom snooze")
-                if (ib.Result = "Cancel")
-                    return DateAdd(A_Now, 2, "Minutes")
-
-                custom := ib.Value
-                if (custom = "")
-                    return DateAdd(A_Now, 2, "Minutes")
-
-                if RegExMatch(custom, "^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m) {
-                    yyyy := m[1], MM := m[2], dd := m[3], HH := m[4], mi := m[5]
-                } else if RegExMatch(custom, "^(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m) {
-                    yyyy := "20" m[1], MM := m[2], dd := m[3], HH := m[4], mi := m[5]
-                } else if RegExMatch(custom, "^(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m) {
-                    yyyy := A_YYYY, MM := m[1], dd := m[2], HH := m[3], mi := m[4]
-                } else if RegExMatch(custom, "^(\d{2}):(\d{2})$", &m) {
-                    yyyy := A_YYYY, MM := A_MM, dd := A_DD, HH := m[1], mi := m[2]
-                } else {
-                    MsgBox("Invalid format. Use (yyyy)(yy)-MM-dd HH:mm.", "Simple Reminders", "Icon!")
-                    return DateAdd(A_Now, 10, "Minutes")
-                }
-
-                return yyyy MM dd HH mi "00"
-            }
-            else if (result = "Cancel")
-                return DateAdd(A_Now, 2, "Minutes")
-                
+        case "Custom...": return CustomSnoozeStamp()
     }
     return DateAdd(A_Now, 10, "Minutes")
 }
+
+; ----------------------------------------------------------------------------
+; Custom snooze wizard
+;
+; Two steps - For/Until, then the value - with Back on the second one, so a
+; wrong turn costs a click instead of a cancelled snooze. Both steps block on
+; WinWaitClose (Gui.Show does not block), and an unparseable value re-opens the
+; same box with the text still in it rather than throwing the snooze away.
+; ----------------------------------------------------------------------------
+
+CustomSnoozeStamp() {
+    step   := 1                    ; 1 = For/Until chooser, 2 = For input, 3 = Until input
+    forTxt := "", forErr := ""     ; survive an invalid re-open
+    untTxt := "", untErr := ""
+
+    loop {                         ; Back can bounce between the steps forever
+        if (step = 1) {
+            choice := ChooseForUntil("Snooze for a duration, or until a time?", "Custom snooze")
+            if (choice = "For")
+                step := 2
+            else if (choice = "Until")
+                step := 3
+            else
+                return DateAdd(A_Now, 2, "Minutes")   ; Cancel / X / Escape
+            continue
+        }
+
+        if (step = 2) {
+            res := AskSnoozeValue("Snooze for...", "Enter a duration (e.g. 1h30m, 45m, 2h)", forTxt, forErr)
+            if (res.action = "cancel")
+                return DateAdd(A_Now, 2, "Minutes")
+            if (res.action = "back") {
+                forErr := "", step := 1
+                continue
+            }
+            forTxt := res.value                       ; bad text survives the re-open
+            if (forTxt = "") {
+                forErr := "Type a duration first."
+                continue
+            }
+            if ((mins := ParseDurationMinutes(forTxt)) < 0) {
+                forErr := "Invalid format. Use like 1h30m, 45m, or 2h."
+                continue
+            }
+            return DateAdd(A_Now, mins, "Minutes")
+        }
+
+        res := AskSnoozeValue("Snooze until...", "Enter a snooze time (((yyyy/yy)-MM-dd) HH:mm)", untTxt, untErr)
+        if (res.action = "cancel")
+            return DateAdd(A_Now, 2, "Minutes")
+        if (res.action = "back") {
+            untErr := "", step := 1
+            continue
+        }
+        untTxt := res.value
+        if (untTxt = "") {
+            untErr := "Type a time first."
+            continue
+        }
+        if ((stamp := ParseUntilStamp(untTxt)) = "") {
+            untErr := "Invalid format. Use (yyyy)(yy)-MM-dd HH:mm."
+            continue
+        }
+        try                        ; the regexes accept 02-31 and 25:00, DateDiff does not
+            DateDiff(stamp, A_Now, "Seconds")
+        catch {
+            untErr := "That date does not exist."
+            continue
+        }
+        return stamp
+    }
+}
+
+; Step 2 of the wizard. Same blocking shape as ChooseForUntil: the handlers set
+; the locals and destroy the Gui, WinWaitClose waits for that.
+; Returns {action: "ok" | "back" | "cancel", value: <trimmed text>}.
+AskSnoozeValue(title, promptText, initialValue := "", errorText := "") {
+    action := "cancel"             ; default if closed via X or Escape
+    value  := ""
+
+    g := Gui("+AlwaysOnTop +Owner -MinimizeBox -MaximizeBox", title)
+    g.SetFont("s10")
+    g.MarginX := 14, g.MarginY := 14
+
+    g.AddText("xm w280", promptText)
+    edit := g.AddEdit("xm y+6 w280", initialValue)
+
+    if (errorText != "") {
+        g.SetFont("s9 cRed")
+        g.AddText("xm y+6 w280", errorText)
+        g.SetFont("s10 cDefault")
+    }
+
+    bOk   := g.AddButton("xm y+14 w85 Default", "Enter")
+    bBack := g.AddButton("x+10 w85", "Back")
+    bCncl := g.AddButton("x+10 w85", "Cancel")
+
+    ; edit.Value has to be read before Destroy - the comma runs left to right
+    bOk.OnEvent("Click",   (*) => (value := edit.Value, action := "ok",   g.Destroy()))
+    bBack.OnEvent("Click", (*) => (value := edit.Value, action := "back", g.Destroy()))
+    bCncl.OnEvent("Click", (*) => (action := "cancel", g.Destroy()))
+    g.OnEvent("Close",  (*) => g.Destroy())
+    g.OnEvent("Escape", (*) => g.Destroy())
+
+    g.Show("AutoSize Center")
+    edit.Focus()                   ; only sticks after Show
+    if (initialValue != "")        ; EM_SETSEL: caret past the text we kept
+        try SendMessage(0xB1, StrLen(initialValue), StrLen(initialValue), edit.Hwnd)
+
+    WinWaitClose("ahk_id " g.Hwnd)
+    return { action: action, value: Trim(value) }
+}
+
+; Whole minutes, or -1 when the text matches none of the duration formats.
+ParseDurationMinutes(txt) {
+    if RegExMatch(txt, "^(\d+)h(\d+)m$", &m)
+        return (m[1] * 60) + m[2]
+    if RegExMatch(txt, "^(\d+)h$", &m)
+        return m[1] * 60
+    if RegExMatch(txt, "^(\d+)m$", &m)
+        return m[1] + 0
+    if RegExMatch(txt, "^(\d+)$", &m)
+        return m[1] + 0
+    return -1
+}
+
+; YYYYMMDDHH24MI00, or "" when the text matches none of the datetime formats.
+ParseUntilStamp(txt) {
+    if RegExMatch(txt, "^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m)
+        return m[1] m[2] m[3] m[4] m[5] "00"
+    if RegExMatch(txt, "^(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m)
+        return "20" m[1] m[2] m[3] m[4] m[5] "00"
+    if RegExMatch(txt, "^(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m)
+        return A_YYYY m[1] m[2] m[3] m[4] "00"
+    if RegExMatch(txt, "^(\d{2}):(\d{2})$", &m)
+        return A_YYYY A_MM A_DD m[1] m[2] "00"
+    return ""
+}
+
 
 ; ============================================================================
 ; Manager GUI
