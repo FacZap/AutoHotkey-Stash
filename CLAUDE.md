@@ -95,6 +95,27 @@ The master's Manager GUI launches it via `OpenMacroRecorder()`.
   already uses them.
 - Full usage: `README_MacroRecorder.md`. Remaining work: `TODO_MacroRecorder.md`.
 
+### Window cycler (windows + browser tabs)
+
+The cycler in the master keeps **one** list that holds both windows and browser
+tabs, cycled together by `Win+F4` in insertion order. `Ctrl+Win+F4` filters what
+that cycle visits (all / tabs only / windows only) without touching the list.
+
+- Entries are Maps, not bare hwnds: `Map("kind","win","hwnd",h)` or
+  `Map("kind","tab","hwnd",h,"exe",e,"tab",normalizedTitle)`.
+- The tab keys are deliberately the ones `FindTimedTabTarget()` reads, so the
+  cycler **reuses the timed-tab UIA layer verbatim** — `GetActiveBrowserTabName`,
+  `NormalizeTabName`, `FindTimedTabTarget`, `ActivateTimedTab` — and contains no
+  UIA code of its own. That dependency runs from the cycler section up into the
+  "Ventanas con timer" section; changing those helpers affects both features.
+- `CleanClosedWindows()` prunes **only** window entries. A tab's stored hwnd goes
+  stale whenever the tab is dragged to another window, and relocating it is
+  exactly what `FindTimedTabTarget` does — so tabs are pruned lazily, only when
+  the cycler jumps to one and cannot find it. This also keeps the cost to one
+  UIA scan per keypress rather than one per saved entry.
+- The standalone `Cycler_Windows_v3.ahk` is AHK v1 and stays window-only:
+  `UIA.ahk` is v2-only, so the tab half cannot be ported to it.
+
 ### Clipboard OCR
 
 `ClipboardOCR.ahk` (v2, standalone) OCRs the image in the clipboard with `Ctrl+Alt+O`

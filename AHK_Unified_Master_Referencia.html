@@ -258,13 +258,16 @@
     <tr><td><span class="key">Win + C</span></td><td class="desc">Envía Win+B (activa la bandeja del sistema), luego 5 veces Flecha Derecha y Enter — secuencia para llegar al reloj/hora del sistema desde la bandeja vía teclado.</td></tr>
   </table>
 
-  <h2>Ciclador de ventanas guardadas <span class="src">Cycler_Windows_v3.ahk</span> <span class="pill gui">ventana (lista)</span></h2>
+  <h2>Ciclador de ventanas y pestañas guardadas <span class="src">Cycler_Windows_v3.ahk</span> <span class="pill gui">ventana (lista)</span></h2>
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>
-    <tr><td><span class="key">Win + F5</span></td><td class="desc">Guarda la ventana activa en una lista interna (evita duplicados; muestra un aviso si ya estaba guardada).</td></tr>
-    <tr><td><span class="key">Win + F4</span></td><td class="desc">Cicla a la siguiente ventana guardada de la lista y la activa. Si alguna ventana guardada ya se cerró, la descarta automáticamente de la lista.</td></tr>
-    <tr><td><span class="key">Win + Shift + F5</span></td><td class="desc">Quita la ventana activa de la lista guardada (si estaba en ella).</td></tr>
-    <tr><td><span class="key">Win + Shift + F4</span></td><td class="desc">Muestra una ventana flotante con la lista de ventanas guardadas (número, indicador de cuál es la actual, título y handle). Se cierra automáticamente al soltar la tecla Win.</td></tr>
+    <tr><td><span class="key">Win + F5</span></td><td class="desc">Guarda la <b>ventana activa</b> en una lista interna (evita duplicados; muestra un aviso si ya estaba guardada).</td></tr>
+    <tr><td><span class="key">Ctrl + Win + F5</span></td><td class="desc">Guarda la <b>pestaña activa</b> del navegador (Chrome, Firefox o Edge) en esa <b>misma</b> lista, al lado de las ventanas. Como una pestaña no tiene handle estable, se guarda por título normalizado y se la vuelve a ubicar igual que los timers de pestaña de Ctrl + Win + F6: sobrevive a que cambie de posición, a que le cambie el contador de no leídos del título y hasta a que la arrastren a otra ventana del navegador. Si la ventana activa no es un navegador, lo avisa con un TrayTip y no guarda nada.</td></tr>
+    <tr><td><span class="key">Win + F4</span></td><td class="desc">Cicla a la siguiente entrada guardada y la activa: si es una <b>ventana</b> la trae al frente, si es una <b>pestaña</b> la selecciona dentro de su navegador y trae esa ventana al frente (restaurándola si estaba minimizada). Ventanas cerradas y pestañas que ya no existen se descartan solas de la lista.</td></tr>
+    <tr><td><span class="key">Ctrl + Win + F4</span></td><td class="desc">Alterna qué recorre Win + F4: <b>todo</b> → <b>solo pestañas</b> → <b>solo ventanas</b> → todo. <span class="scope">No borra nada</span>: la lista queda igual, solo cambia qué entradas se saltean. El modo actual se avisa con un TrayTip y se ve en el encabezado de la lista de Win + Shift + F4.</td></tr>
+    <tr><td><span class="key">Win + Shift + F5</span></td><td class="desc">Quita la <b>ventana activa</b> de la lista guardada (si estaba en ella).</td></tr>
+    <tr><td><span class="key">Ctrl + Shift + Win + F5</span></td><td class="desc">Quita la <b>pestaña activa</b> del navegador de la lista guardada (si estaba en ella).</td></tr>
+    <tr><td><span class="key">Win + Shift + F4</span></td><td class="desc">Muestra una ventana flotante con la lista de ventanas y pestañas guardadas (número, indicador de cuál es la actual, tipo, título y handle), con el filtro activo en el encabezado y las filas que ese filtro saltea marcadas como <code class="inline">skip</code>. Se cierra automáticamente al soltar la tecla Win.</td></tr>
   </table>
 
   <h2>Ventanas y pestañas con timer <span class="src">^^AHK_Unified_Master.ahk</span> <span class="pill gui">ventana (lista)</span></h2>

@@ -34,8 +34,16 @@ VSCodePath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\
 counter := 0
 lastControlPress := 0
 
-global gWindows := []
+; ---- Ciclador (Win+F4): la lista guarda ventanas Y pestañas del navegador ----
+; Cada entrada es un Map, con una de estas dos formas:
+;   ventana:  Map("kind","win", "hwnd",hwnd)
+;   pestaña:  Map("kind","tab", "hwnd",hwnd, "exe",exe, "tab",nombreNormalizado)
+; Las claves de la pestaña son, a propósito, las mismas que lee
+; FindTimedTabTarget() (sección "Ventanas con timer"): así esa función -- y
+; ActivateTimedTab() -- se reutilizan tal cual, sin código UIA nuevo acá.
+global gCyclerItems := []
 global gIndex := 0
+global gCyclerFilter := "all"       ; qué recorre Win+F4: "all" | "tab" | "win"
 global gListGuiVisible := false
 global cyclerListGui := ""
 
@@ -1407,67 +1415,184 @@ GoogleCalendarBrowserExe := Map("Chrome", "chrome.exe", "Firefox", "firefox.exe"
 }
 
 ; ============================================================================
-; Cycler_Windows_v3.ahk
-;   Win+F5 = Add active window | Win+F4 = Cycle stored windows
-;   Win+Shift+F5 = Remove active window | Win+Shift+F4 = Show GUI list
+; Cycler_Windows_v3.ahk  (+ pestañas del navegador)
+;   Win+F5             = Agrega la ventana activa a la lista
+;   Ctrl+Win+F5        = Agrega la PESTAÑA activa del navegador a la misma lista
+;   Win+F4             = Cicla a la siguiente entrada y la activa
+;   Ctrl+Win+F4        = Alterna qué recorre Win+F4: todo / pestañas / ventanas
+;   Win+Shift+F5       = Quita la ventana activa de la lista
+;   Ctrl+Shift+Win+F5  = Quita la pestaña activa de la lista
+;   Win+Shift+F4       = Lista flotante (se cierra al soltar Win)
+;
+;   La lista es UNA sola: ventanas y pestañas se ciclan juntas, en el orden en
+;   que se fueron agregando. El filtro de Ctrl+Win+F4 no toca la lista, solo
+;   decide qué entradas saltea Win+F4.
+;
+;   Una pestaña no tiene handle estable, así que se guarda por título
+;   normalizado y se la vuelve a ubicar con las mismas funciones que usan los
+;   timers de pestaña (Ctrl+Win+F6): FindTimedTabTarget() / ActivateTimedTab().
+;   Por eso una pestaña guardada sobrevive a que cambie de posición, a que le
+;   cambie el contador de no leídos del título, e incluso a que la arrastren a
+;   otra ventana del navegador.
 ; ============================================================================
 #F5::AddActiveWindow()
 #F4::CycleWindows()
 #+F5::RemoveActiveWindow()
 #+F4::ShowWindowListGuiIfNeeded()
+^#F5::AddActiveTab()
+^+#F5::RemoveActiveTab()
+^#F4::CycleCyclerFilter()
+
+CyclerFilterLabel() {
+    global gCyclerFilter
+    if (gCyclerFilter = "tab")
+        return "tabs only"
+    if (gCyclerFilter = "win")
+        return "windows only"
+    return "all"
+}
+
+; todo -> solo pestañas -> solo ventanas -> todo
+CycleCyclerFilter() {
+    global gCyclerFilter
+    if (gCyclerFilter = "all")
+        gCyclerFilter := "tab"
+    else if (gCyclerFilter = "tab")
+        gCyclerFilter := "win"
+    else
+        gCyclerFilter := "all"
+    TrayTip "Cycler filter", "Win+F4 now cycles: " CyclerFilterLabel(), 2
+    RefreshWindowListGui()      ; si la lista flotante está abierta, la redibuja
+}
 
 AddActiveWindow() {
-    global gWindows
+    global gCyclerItems
     hwnd := WinGetID("A")
     if !hwnd
         return
-    for v in gWindows {
-        if (v = hwnd) {
+    for it in gCyclerItems {
+        if (it["kind"] = "win" && it["hwnd"] = hwnd) {
             TrayTip "Window Already Saved", "This window is already stored.", 2
             return
         }
     }
-    gWindows.Push(hwnd)
+    gCyclerItems.Push(Map("kind", "win", "hwnd", hwnd))
     title := WinGetTitle("ahk_id " hwnd)
-    TrayTip "Window Saved", "Added (" gWindows.Length "):`n" title, 2
+    TrayTip "Window Saved", "Added (" gCyclerItems.Length "):`n" title, 2
+}
+
+; Datos de la pestaña activa: [hwnd, exe, nombre] o "" si la ventana activa no
+; es un navegador o UIA no pudo leerla (en ambos casos ya avisó por TrayTip).
+; Mismos chequeos que NewTimedTabTimer(); 'what' describe qué iba a hacerse.
+GetCyclerActiveTab(what) {
+    global gTimedBrowserExes
+    hwnd := WinGetID("A")
+    if !hwnd
+        return ""
+    exe := ""
+    try exe := WinGetProcessName("ahk_id " hwnd)
+    isBrowser := false
+    for candidate in gTimedBrowserExes {
+        if (candidate = exe) {
+            isBrowser := true
+            break
+        }
+    }
+    if !isBrowser {
+        TrayTip "Not a Browser"
+            , what " the active tab of Chrome, Firefox or Edge.`nCurrent window: " exe, 2
+        return ""
+    }
+    tabName := GetActiveBrowserTabName(hwnd)
+    if (tabName = "") {
+        TrayTip "Tab Not Detected"
+            , "Couldn't read the active tab of " exe ".`n(Firefox needs accessibility enabled.)", 2
+        return ""
+    }
+    return [hwnd, exe, tabName]
+}
+
+AddActiveTab() {
+    global gCyclerItems
+    if !(t := GetCyclerActiveTab("Ctrl+Win+F5 saves"))
+        return
+    for it in gCyclerItems {
+        if (it["kind"] = "tab" && it["tab"] = t[3]) {
+            TrayTip "Tab Already Saved", "This tab is already stored.", 2
+            return
+        }
+    }
+    gCyclerItems.Push(Map("kind", "tab", "hwnd", t[1], "exe", t[2], "tab", t[3]))
+    TrayTip "Tab Saved", "Added (" gCyclerItems.Length "):`n" t[3], 2
 }
 
 CycleWindows() {
-    global gWindows, gIndex
-    if (gWindows.Length = 0) {
-        MsgBox "No windows have been stored yet.", "No Windows Stored", 48
+    global gCyclerItems, gIndex, gCyclerFilter
+    if (gCyclerItems.Length = 0) {
+        MsgBox "No windows or tabs have been stored yet.", "Nothing Stored", 48
         gIndex := 0
         return
     }
     CleanClosedWindows()
-    if (gWindows.Length = 0) {
+    if (gCyclerItems.Length = 0) {
         MsgBox "All stored windows were closed.`nList cleared.", "All Windows Closed", 48
         gIndex := 0
         return
     }
-    gIndex++
-    if (gIndex > gWindows.Length)
-        gIndex := 1
-    hwnd := gWindows[gIndex]
-    if !WinExist("ahk_id " hwnd) {
-        gWindows.RemoveAt(gIndex)
+    matches := []                       ; índices que el filtro actual deja pasar
+    for i, it in gCyclerItems {
+        if (gCyclerFilter = "all" || it["kind"] = gCyclerFilter)
+            matches.Push(i)
+    }
+    ; Hay entradas, pero ninguna pasa el filtro. Aviso liviano, no un MsgBox
+    ; modal: es una elección del usuario y se deshace con Ctrl+Win+F4.
+    if (matches.Length = 0) {
+        TrayTip "Nothing to Cycle"
+            , "Filter is '" CyclerFilterLabel() "' and nothing in the list matches it.", 2
+        return
+    }
+    next := 0
+    for idx in matches {
+        if (idx > gIndex) {
+            next := idx
+            break
+        }
+    }
+    gIndex := next ? next : matches[1]      ; sin posterior => vuelve al primero
+    item := gCyclerItems[gIndex]
+    if (item["kind"] = "win") {
+        if !WinExist("ahk_id " item["hwnd"]) {
+            gCyclerItems.RemoveAt(gIndex)
+            gIndex--
+            CycleWindows()
+            return
+        }
+        WinActivate "ahk_id " item["hwnd"]
+        return
+    }
+    ; Pestaña: se la busca recién ahora, y solo la de esta entrada -- un escaneo
+    ; UIA por pulsación, no uno por entrada guardada. Si ya no está, se descarta
+    ; y se sigue de largo, igual que con una ventana cerrada.
+    if !(target := FindTimedTabTarget(item)) {
+        gCyclerItems.RemoveAt(gIndex)
         gIndex--
         CycleWindows()
         return
     }
-    WinActivate "ahk_id " hwnd
+    item["hwnd"] := target[1]     ; pudo haber cambiado de ventana: recordá la nueva
+    ActivateTimedTab(target[1], target[2])
 }
 
 RemoveActiveWindow() {
-    global gWindows, gIndex
-    if (gWindows.Length = 0) {
-        MsgBox "No windows are stored.", "Nothing Stored", 48
+    global gCyclerItems, gIndex
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
         gIndex := 0
         return
     }
     CleanClosedWindows()
-    if (gWindows.Length = 0) {
-        MsgBox "No windows are stored.", "Nothing Stored", 48
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
         gIndex := 0
         return
     }
@@ -1475,9 +1600,9 @@ RemoveActiveWindow() {
     if !hwnd
         return
     removed := false
-    for i, v in gWindows {
-        if (v = hwnd) {
-            gWindows.RemoveAt(i)
+    for i, it in gCyclerItems {
+        if (it["kind"] = "win" && it["hwnd"] = hwnd) {
+            gCyclerItems.RemoveAt(i)
             removed := true
             if (gIndex >= i)
                 gIndex--
@@ -1490,31 +1615,63 @@ RemoveActiveWindow() {
     } else {
         TrayTip "Not Found", "Active window wasn't in the list.", 2
     }
-    if (gWindows.Length = 0)
+    if (gCyclerItems.Length = 0)
+        gIndex := 0
+}
+
+RemoveActiveTab() {
+    global gCyclerItems, gIndex
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
+        gIndex := 0
+        return
+    }
+    if !(t := GetCyclerActiveTab("Ctrl+Shift+Win+F5 removes"))
+        return
+    removed := false
+    for i, it in gCyclerItems {
+        if (it["kind"] = "tab" && it["tab"] = t[3]) {
+            gCyclerItems.RemoveAt(i)
+            removed := true
+            if (gIndex >= i)
+                gIndex--
+            break
+        }
+    }
+    if removed
+        TrayTip "Removed", "Removed:`n" t[3], 2
+    else
+        TrayTip "Not Found", "Active tab wasn't in the list.", 2
+    if (gCyclerItems.Length = 0)
         gIndex := 0
 }
 
 ShowWindowListGuiIfNeeded() {
-    global gListGuiVisible, gWindows, gIndex
+    global gListGuiVisible, gCyclerItems, gIndex
     if gListGuiVisible
         return
     CleanClosedWindows()
-    if (gWindows.Length = 0) {
-        MsgBox "No windows are stored.", "No Windows Stored", 48
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
         gIndex := 0
         return
     }
     ShowWindowListGui()
 }
 
+; Solo poda entradas de VENTANA. El hwnd de una pestaña puede quedar viejo sin
+; que la pestaña haya muerto (basta arrastrarla a otra ventana), y volver a
+; ubicarla es justamente lo que hace FindTimedTabTarget(); podarlas acá por
+; hwnd borraría pestañas vivas. Las pestañas se descartan recién cuando el
+; ciclador salta a una y no la encuentra, así que tampoco hay escaneo UIA acá.
 CleanClosedWindows() {
-    global gWindows, gIndex
-    count := gWindows.Length
+    global gCyclerItems, gIndex
+    count := gCyclerItems.Length
     Loop count {
         i := count - A_Index + 1
-        hwnd := gWindows[i]
-        if !WinExist("ahk_id " hwnd) {
-            gWindows.RemoveAt(i)
+        it := gCyclerItems[i]
+        if (it["kind"] = "win" && !WinExist("ahk_id " it["hwnd"])) {
+            gCyclerItems.RemoveAt(i)
             if (gIndex >= i)
                 gIndex--
         }
@@ -1524,25 +1681,43 @@ CleanClosedWindows() {
 }
 
 ShowWindowListGui() {
-    global gWindows, gIndex, gListGuiVisible, cyclerListGui
+    global gCyclerItems, gIndex, gListGuiVisible, cyclerListGui, gCyclerFilter
     gListGuiVisible := true
     cyclerListGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Border")
     cyclerListGui.MarginX := 10
     cyclerListGui.MarginY := 10
     cyclerListGui.SetFont("s9", "Segoe UI")
-    cyclerListGui.Add("Text", , "Saved Windows (Win+F4 cycles)")
-    lv := cyclerListGui.Add("ListView", "w520 r10 Grid -Multi", ["#", "Current", "Title", "HWND"])
+    cyclerListGui.Add("Text", , "Saved windows & tabs  --  Win+F4 cycles: " CyclerFilterLabel()
+        . "   (Ctrl+Win+F4 changes that)")
+    lv := cyclerListGui.Add("ListView", "w640 r10 Grid -Multi", ["#", "Current", "Type", "Title", "HWND"])
     lv.ModifyCol(1, 40)
     lv.ModifyCol(2, 55)
-    lv.ModifyCol(3, 360)
-    lv.ModifyCol(4, 80)
-    for i, hwnd in gWindows {
-        title := WinGetTitle("ahk_id " hwnd)
+    lv.ModifyCol(3, 100)
+    lv.ModifyCol(4, 330)
+    lv.ModifyCol(5, 80)
+    for i, it in gCyclerItems {
+        isTab := (it["kind"] = "tab")
+        title := isTab ? it["tab"] : WinGetTitle("ahk_id " it["hwnd"])
         cur := (i = gIndex ? "◀" : "")
-        lv.Add("", i, cur, title, hwnd)
+        ; Las filas que el filtro actual deja afuera se marcan, para que se vea
+        ; por qué Win+F4 las saltea.
+        skipped := (gCyclerFilter != "all" && it["kind"] != gCyclerFilter)
+        kind := (isTab ? "Tab" : "Window") (skipped ? "  · skip" : "")
+        lv.Add("", i, cur, kind, title, it["hwnd"])
     }
     cyclerListGui.Show("x100 y100 NoActivate")
     SetTimer(CheckWinReleased, 50)
+}
+
+; La GUI se arma de cero cada vez (el ListView vive en una local), así que
+; refrescarla es destruirla y volver a mostrarla.
+RefreshWindowListGui() {
+    global gListGuiVisible, cyclerListGui
+    if !gListGuiVisible
+        return
+    try cyclerListGui.Destroy()
+    gListGuiVisible := false
+    ShowWindowListGui()
 }
 
 CheckWinReleased() {
@@ -1561,19 +1736,27 @@ CheckWinReleased() {
 ;   Ctrl+Win+F6   = lo mismo pero con la PESTAÑA activa del navegador (Chrome,
 ;                   Firefox o Edge): guarda esa pestaña puntual y al vencer el
 ;                   timer la vuelve a seleccionar, no solo la ventana.
-;   Win+Shift+F6  = GUI de administración: ver los timers corriendo (ventanas y
-;                   pestañas), sumar o restar tiempo, abrir ya o eliminarlos.
+;   Win+Alt+U, F4 = timer para CERRAR la pestaña activa del navegador.
+;   Win+Alt+U, F4 F4 = timer para CERRAR la ventana activa (dos F4 seguidos;
+;                   el acorde Win+Alt+U vive en la sección "Timer -> Win+Alt+S").
+;   Win+Shift+F6  = GUI de administración: ver los timers corriendo (los de
+;                   abrir y los de cerrar, ventanas y pestañas), sumar o restar
+;                   tiempo, ejecutarlos ya o eliminarlos.
 ;   El tiempo se tipea en un solo campo, con formato:
 ;   25 (minutos) | 90m | 2h | 1h30 | 45s | @17:45 (hora de
-;   reloj, mañana si ya pasó) | 0 (la abre ahora mismo, sin timer).
+;   reloj, mañana si ya pasó) | 0 (la abre -- o la cierra -- ahora mismo).
 ;   Al cumplirse el tiempo la ventana se restaura (si estaba minimizada) y se
-;   activa; el timer se consume (no se repite).
+;   activa -- o se cierra, si el timer es de cierre; en ambos casos el timer se
+;   consume (no se repite). Cerrar una ventana es un WinClose (WM_CLOSE), así
+;   que la aplicación sigue pudiendo preguntar si guardar.
 ;   Las pestañas se ubican por título vía UI Automation (UIA.ahk), igual que
 ;   Shift+NumpadEnter (find_google_calendar), así que sobreviven a que la
 ;   pestaña cambie de posición o incluso de ventana.
 ; ============================================================================
-; items ventana:  Map("id","kind","hwnd","title","due","aot")
-; items pestaña:  Map("id","kind","hwnd","exe","tab","title","due","aot")
+; items ventana:  Map("id","kind","action","hwnd","title","due","aot")
+; items pestaña:  Map("id","kind","action","hwnd","exe","tab","title","due","aot")
+;   kind   = "win" | "tab"        (sobre qué actúa)
+;   action = "open" | "close"     (qué le hace al vencer)
 global gTimedWindows := []
 global gTimedNextId  := 1
 global gTimedGui     := ""        ; GUI de administración (Win+Shift+F6)
@@ -2631,11 +2814,14 @@ global gHKSections := [
         { id: "clock", type: "hotkey", hk: "#c", label: "Win + C",
           desc: "Win+B, 5 veces Derecha y Enter para llegar al reloj" } ] },
 
-    { id: "cycler", title: "Ciclador de ventanas guardadas", src: "Cycler_Windows_v3.ahk", items: [
-        { id: "add",    type: "hotkey", hk: "#F5",  label: "Win + F5",         desc: "Guarda la ventana activa en la lista" },
-        { id: "cycle",  type: "hotkey", hk: "#F4",  label: "Win + F4",         desc: "Cicla a la siguiente ventana guardada" },
-        { id: "remove", type: "hotkey", hk: "#+F5", label: "Win + Shift + F5", desc: "Quita la ventana activa de la lista" },
-        { id: "list",   type: "hotkey", hk: "#+F4", label: "Win + Shift + F4", desc: "Muestra la lista flotante de ventanas guardadas" } ] },
+    { id: "cycler", title: "Ciclador de ventanas y pestañas guardadas", src: "Cycler_Windows_v3.ahk", items: [
+        { id: "add",        type: "hotkey", hk: "#F5",   label: "Win + F5",                desc: "Guarda la ventana activa en la lista" },
+        { id: "add_tab",    type: "hotkey", hk: "^#F5",  label: "Ctrl + Win + F5",         desc: "Guarda la pestaña activa del navegador en la lista" },
+        { id: "cycle",      type: "hotkey", hk: "#F4",   label: "Win + F4",                desc: "Cicla a la siguiente ventana o pestaña guardada" },
+        { id: "filter",     type: "hotkey", hk: "^#F4",  label: "Ctrl + Win + F4",         desc: "Alterna qué cicla Win+F4: todo / solo pestañas / solo ventanas" },
+        { id: "remove",     type: "hotkey", hk: "#+F5",  label: "Win + Shift + F5",        desc: "Quita la ventana activa de la lista" },
+        { id: "remove_tab", type: "hotkey", hk: "^+#F5", label: "Ctrl + Shift + Win + F5", desc: "Quita la pestaña activa del navegador de la lista" },
+        { id: "list",       type: "hotkey", hk: "#+F4",  label: "Win + Shift + F4",        desc: "Muestra la lista flotante de ventanas y pestañas guardadas" } ] },
 
     { id: "timed_windows", title: "Ventanas con timer", src: "Nuevo", items: [
         { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece (25, 90m, 2h, 1h30, 45s, @17:45)" },
