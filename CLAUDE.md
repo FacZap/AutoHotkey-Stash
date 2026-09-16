@@ -71,9 +71,13 @@ same window is reachable from the Manager's `Aux Scripts…` button.
   hotkeys and state. `RhythmGame.ahk` additionally runs a 60 fps render timer,
   which has no business in the master's process. They run as separate
   processes, like `MacroRecorder.ahk`.
-- Launching goes through the `.ahk` file association, i.e. the AutoHotkey UX
-  launcher, which reads each script's `#Requires` and picks v1 or v2.
-  `A_AhkPath` cannot be used — it is the v2 exe running the master.
+- Launching invokes the AutoHotkey UX launcher, which reads each script's
+  `#Requires` and picks v1 or v2. `A_AhkPath` cannot be used — it is the v2 exe
+  running the master. The command comes from the `.ahk` file association in the
+  registry, with `/Launch` inserted before the path: without that switch the
+  launcher stays alive waiting on its child (it only exits early when its parent
+  is `explorer.exe`), which left one idle `AutoHotkeyUX.exe` per aux script in
+  the Manager's list and made `Reload All` relaunch those scripts.
 - Already-running scripts are detected by their (hidden) window title,
   `<full path> - AutoHotkey v<version>`, and skipped.
 - `aux-scripts.ini` stores the ticked set (`[Selection]`) and what startup

@@ -3172,10 +3172,10 @@ AuxIsRunning(path) {
     return found
 }
 
-; Se lanza por asociación de archivo (.ahk -> AutoHotkey UX launcher), que elige
-; el intérprete leyendo el #Requires del script. Es la única forma de arrancar
-; los dos de traymond-timer: A_AhkPath apunta al exe v2 que corre este master y
-; no puede ejecutar v1.
+; Se lanza con el launcher del UX de AutoHotkey (el mismo de la asociación de
+; archivo), que elige el intérprete leyendo el #Requires del script. Es la única
+; forma de arrancar los dos de traymond-timer: A_AhkPath apunta al exe v2 que
+; corre este master y no puede ejecutar v1.
 ; Devuelve { status: "launched" | "running" | "error", msg }.
 AuxLaunch(entry) {
     if !FileExist(entry.path)
@@ -3185,10 +3185,33 @@ AuxLaunch(entry) {
     if (entry.needs != "" && !ProcessExist(entry.needs))
         return { status: "error", msg: entry.needs " no está corriendo" }
     try
-        Run('"' entry.path '"')
+        Run(AuxLaunchCmd(entry.path))
     catch as err
         return { status: "error", msg: err.Message }
     return { status: "launched", msg: "" }
+}
+
+; Sin /Launch el launcher del UX no termina: después de arrancar al intérprete se
+; queda esperando a que muera el hijo o el padre, y solo sale enseguida si el
+; padre es explorer.exe (ver LaunchScript en UX\launcher.ahk). Lanzado desde acá
+; el padre es el master, así que quedaba un AutoHotkeyUX.exe ocioso por cada
+; auxiliar, visible en la lista del Manager y al que "Reload All" le hacía
+; relanzar su script. El switch va antes de la ruta, de ahí que no alcance con
+; Run(ruta): hay que armar la línea entera.
+; El comando sale del registro y no hardcodeado: en esta máquina hay dos
+; instalaciones de AutoHotkey y solo una tiene carpeta UX.
+AuxLaunchCmd(path) {
+    try {
+        progId := RegRead("HKEY_CLASSES_ROOT\.ahk")
+        cmd    := RegRead("HKEY_CLASSES_ROOT\" progId "\Shell\Open\Command")
+    } catch
+        return '"' path '"'
+    ; Si la asociación no pasa por el launcher no sirve /Launch: AutoHotkey.exe a
+    ; secas no conoce ese switch.
+    if !InStr(cmd, "launcher.ahk")
+        return '"' path '"'
+    ; Queda '"...\AutoHotkeyUX.exe" "...\launcher.ahk"', sin la cola "%1" %*.
+    return RegExReplace(cmd, '\s*"?%1"?(\s+%\*)?\s*$') ' /Launch "' path '"'
 }
 
 ; Devuelve { text, failed } con el resumen ya armado para mostrar.
@@ -3492,6 +3515,10 @@ Refresh() {
     for script in WinGetList("ahk_class AutoHotkey") {
         try {
             title := WinGetTitle("ahk_id " script)
+            ; El launcher del UX de AutoHotkey no es un script propio; ver
+            ; AuxLaunchCmd() por qué igual no debería aparecer ninguno acá.
+            if InStr(title, "\UX\launcher.ahk - AutoHotkey")
+                continue
             SplitPath(title, &scriptName)
             if !(scriptName ~= "\.exe$") {
                 paused := IsPaused(script)

@@ -108,6 +108,10 @@ Refresh() {
     for script in WinGetList("ahk_class AutoHotkey") {
         try {
             title := WinGetTitle("ahk_id " script)
+            ; El launcher del UX de AutoHotkey no es un script propio: queda vivo
+            ; cuando alguien lanza un .ahk por asociación sin el switch /Launch.
+            if InStr(title, "\UX\launcher.ahk - AutoHotkey")
+                continue
             SplitPath(title, &scriptName)
             if !(scriptName ~= "\.exe$") {
                 paused := IsPaused(script)
