@@ -428,7 +428,7 @@ CustomSnoozeStamp() {
             continue
         }
         if ((stamp := ParseUntilStamp(untTxt)) = "") {
-            untErr := "Invalid format. Use (yyyy)(yy)-MM-dd HH:mm) or Tomorrow HH:mm."
+            untErr := "Invalid format. Use ((yyyy)(yy)-MM-dd HH:mm) or Tomorrow HH:mm."
             continue
         }
         try                        ; the regexes accept 02-31 and 25:00, DateDiff does not
