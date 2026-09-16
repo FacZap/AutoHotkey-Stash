@@ -3439,16 +3439,16 @@ AddButton("x+5", "yp", "w85", "Kill", (*) => ExitScript())
 
 ; Row 3
 AddButton("x10", "y+5", "w85", "Select - Edit", (*) => EditScript())
-AddButton("x+5", "yp", "w85", "Open Folder", (*) => Run("explorer.exe 'C:\autohotkey'"))
+AddButton("x+5", "yp", "w85", "Open Folder", (*) => Run("C:\autohotkey"))
 AddButton("x+5", "yp", "w85", "GUI Reload", (*) => Reload())
 AddButton("x+5", "yp", "w85", "Quit", (*) => ExitApp())
 
 ; Row 4
-AddButton("x10", "y+5", "w170", "Macro Recorder", (*) => OpenMacroRecorder())
-AddButton("x+5", "yp",  "w170", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
+AddButton("x10", "y+5", "w174", "Macro Recorder", (*) => OpenMacroRecorder())
+AddButton("x+5", "yp",  "w174", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
 
 ; Row 5
-AddButton("x10", "y+5", "w345", "Aux Scripts…", (*) => ShowAuxScriptsGui())
+AddButton("x10", "y+5", "w354", "Aux Scripts…", (*) => ShowAuxScriptsGui())
 
 MyGui.OnEvent("Close", (*) => MyGui.Hide())
 MyGui.Show("w375 h400")
