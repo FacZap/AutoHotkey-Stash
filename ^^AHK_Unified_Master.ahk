@@ -416,6 +416,11 @@ IdleCheck2() {
 ;
 ;   Win+Alt+U  y luego  A  (< 2 s)  -> abre la GUI del timer -> Play/Pausa
 ;   (esa GUI y su disparo viven en la sección "Timer -> Play/Pausa", más abajo)
+;
+;   Win+Alt+U  y luego  F4 (< 2 s)   -> timer para CERRAR la pestaña activa
+;   Win+Alt+U  y luego  F4 F4        -> timer para CERRAR la ventana activa
+;   (el segundo F4 tiene 450 ms para llegar; las GUIs de alta y la lista de
+;   timers viven en la sección "Ventanas con timer", más abajo)
 ; ============================================================================
 ; El tiempo se tipea en un solo campo, con el mismo formato que Win+F6 y que el
 ; prompt de traymond-timer.ahk (ParseTimedDelaySeconds, más abajo):
@@ -426,15 +431,24 @@ global inactivityMinutes := 10    ; auto-envío por inactividad; 0 = desactivado
 global inactivityFired := false   ; evita reenvíos dentro del mismo período inactivo
 global waitingForSTimerKey := false ; true tras Win+Alt+U, esperando la "I" (< 1 s)
 global waitingForATimerKey := false ; true tras Win+Alt+U, esperando la "A" (< 2 s)
+global waitingForCloseKey := false  ; true tras Win+Alt+U, esperando F4 (< 2 s)
+global gCloseChordFirstF4 := false  ; ya llegó un F4; un segundo lo pasa a ventana
 SetTimer(CheckInactivity, 1000)
 
 #!u::
 {
-    global waitingForSTimerKey, waitingForATimerKey
+    global waitingForSTimerKey, waitingForATimerKey, waitingForCloseKey
     waitingForSTimerKey := true
     waitingForATimerKey := true
     SetTimer(ResetSTimerWait, -1000)   ; la "I" debe llegar en < 1 s
     SetTimer(ResetATimerWait, -2000)   ; la "A" debe llegar en < 2 s
+    ; El F4 solo se arma si al menos una de las dos acciones de cierre sigue
+    ; prendida en el menú de hotkeys (Ctrl+Alt+H): si están las dos apagadas,
+    ; F4 no se engancha y Win+F4 sigue siendo el ciclador de siempre.
+    if (HKEnabled("timed_close.tab") || HKEnabled("timed_close.win")) {
+        waitingForCloseKey := true
+        SetTimer(ResetCloseWait, -2000)   ; el F4 debe llegar en < 2 s
+    }
 }
 
 ; La "I" solo es hotkey durante esa ventana de 1 s (con o sin modificadores).
@@ -456,6 +470,48 @@ SetTimer(CheckInactivity, 1000)
 }
 #HotIf
 
+; F4 solo es hotkey durante esa ventana de 2 s (con o sin modificadores: es
+; normal seguir apretando Win+Alt al llegar de Win+Alt+U). La variante #F4 se
+; declara aparte porque Win+F4 ya es el ciclador de ventanas: un #HotIf
+; contextual le gana a la variante global del MISMO hotkey, cosa que el
+; comodín *F4 no garantiza frente a un #F4 exacto.
+#HotIf waitingForCloseKey
+*F4::TimedCloseChordKey()
+#F4::TimedCloseChordKey()
+^#F4::TimedCloseChordKey()   ; mismo motivo que #F4: Ctrl+Win+F4 es el filtro del ciclador
+#HotIf
+
+; Un F4 => pestaña, dos F4 => ventana. Como no se puede saber si viene un
+; segundo golpe hasta que pasa el tiempo, el primer F4 solo arma el margen.
+TimedCloseChordKey() {
+    global gCloseChordFirstF4
+    ClearTimerChordWait(true)          ; la I y la A ya no aplican; el F4 sigue vivo
+    if gCloseChordFirstF4 {
+        ResetCloseWait()
+        if HKEnabled("timed_close.win")
+            NewTimedWindowTimer("close")
+        return
+    }
+    gCloseChordFirstF4 := true
+    SetTimer(ResetCloseWait, 0)              ; ya no vence por falta de F4
+    SetTimer(TimedCloseChordSingle, -450)    ; margen para el segundo F4
+}
+
+; Venció el margen sin un segundo F4 => era un cierre de pestaña.
+TimedCloseChordSingle() {
+    ResetCloseWait()
+    if HKEnabled("timed_close.tab")
+        NewTimedTabTimer("close")
+}
+
+ResetCloseWait() {
+    global waitingForCloseKey, gCloseChordFirstF4
+    waitingForCloseKey := false
+    gCloseChordFirstF4 := false
+    SetTimer(ResetCloseWait, 0)
+    SetTimer(TimedCloseChordSingle, 0)
+}
+
 ResetSTimerWait() {
     global waitingForSTimerKey
     waitingForSTimerKey := false
@@ -468,12 +524,16 @@ ResetATimerWait() {
 
 ; Al aceptar cualquiera de las dos teclas se cierran las dos ventanas, para que
 ; la que quede viva no abra además la otra GUI.
-ClearTimerChordWait() {
+; keepClose deja vivo el acorde del F4: lo usa el propio handler del F4, que
+; necesita descartar la I y la A pero seguir escuchando un segundo F4.
+ClearTimerChordWait(keepClose := false) {
     global waitingForSTimerKey, waitingForATimerKey
     waitingForSTimerKey := false
     waitingForATimerKey := false
     SetTimer(ResetSTimerWait, 0)
     SetTimer(ResetATimerWait, 0)
+    if !keepClose
+        ResetCloseWait()
 }
 
 OpenSTimerGui() {
@@ -1524,25 +1584,27 @@ global gTimedLastDelay := "5m"    ; último tiempo tipeado en la GUI de alta
 global gTimedBrowserExes := ["chrome.exe", "firefox.exe", "msedge.exe"]
 SetTimer(CheckTimedWindows, 500)
 
-#F6::SaveWindowWithTimer()
-^#F6::SaveBrowserTabWithTimer()
+#F6::NewTimedWindowTimer()
+^#F6::NewTimedTabTimer()
 #+F6::ShowTimedWindowsGui()
 
-SaveWindowWithTimer() {
+; action = "open" (Win+F6) | "close" (Win+Alt+U, F4 F4)
+NewTimedWindowTimer(action := "open") {
     hwnd := WinGetID("A")
     if !hwnd {
-        TrayTip "Sin ventana activa", "No hay ninguna ventana para guardar.", 2
+        TrayTip "Sin ventana activa", "No hay ninguna ventana activa.", 2
         return
     }
-    OpenTimedWindowGui(hwnd)
+    OpenTimedWindowGui(hwnd, , , action)
 }
 
-; ---- Alta de un timer para la pestaña activa del navegador (Ctrl+Win+F6) ----
-SaveBrowserTabWithTimer() {
+; ---- Alta de un timer para la pestaña activa del navegador ----
+;      action = "open" (Ctrl+Win+F6) | "close" (Win+Alt+U, F4)
+NewTimedTabTimer(action := "open") {
     global gTimedBrowserExes
     hwnd := WinGetID("A")
     if !hwnd {
-        TrayTip "Sin ventana activa", "No hay ninguna ventana para guardar.", 2
+        TrayTip "Sin ventana activa", "No hay ninguna ventana activa.", 2
         return
     }
     exe := ""
@@ -1556,7 +1618,8 @@ SaveBrowserTabWithTimer() {
     }
     if !isBrowser {
         TrayTip "No es un navegador"
-            , "Ctrl+Win+F6 guarda la pestaña activa de Chrome, Firefox o Edge.`nVentana actual: " exe, 2
+            , (action = "close" ? "Win+Alt+U y F4 cierra" : "Ctrl+Win+F6 guarda")
+              . " la pestaña activa de Chrome, Firefox o Edge.`nVentana actual: " exe, 2
         return
     }
     tabName := GetActiveBrowserTabName(hwnd)
@@ -1565,7 +1628,7 @@ SaveBrowserTabWithTimer() {
             , "No pude leer la pestaña activa de " exe ".`n(En Firefox hace falta tener la accesibilidad activada.)", 2
         return
     }
-    OpenTimedWindowGui(hwnd, tabName, exe)
+    OpenTimedWindowGui(hwnd, tabName, exe, action)
 }
 
 ; Nombre de la pestaña seleccionada en una ventana de navegador, vía UIA.
@@ -1600,9 +1663,11 @@ NormalizeTabName(name) {
 }
 
 ; tabName/exe vacíos => timer de ventana; con valor => timer de pestaña.
-OpenTimedWindowGui(hwnd, tabName := "", exe := "") {
+; action = "open" (reaparece al vencer) | "close" (se cierra al vencer).
+OpenTimedWindowGui(hwnd, tabName := "", exe := "", action := "open") {
     global gTimedLastDelay
     isTab := (tabName != "")
+    isClose := (action = "close")
     title := ""
     if isTab
         title := tabName
@@ -1610,7 +1675,9 @@ OpenTimedWindowGui(hwnd, tabName := "", exe := "") {
         try title := WinGetTitle("ahk_id " hwnd)
     ; Prefijo + título en un solo renglón: se recorta el título para que el
     ; conjunto entre en el ancho de la ventana (w380) sin envolverse.
-    prefix := isTab ? "Pestaña guardada (" exe "):  " : "Ventana guardada:  "
+    prefix := isTab
+        ? (isClose ? "Pestaña a cerrar (" exe "):  " : "Pestaña guardada (" exe "):  ")
+        : (isClose ? "Ventana a cerrar:  " : "Ventana guardada:  ")
     limit := 58 - StrLen(prefix)
     if (limit < 20)
         limit := 20
@@ -1618,27 +1685,31 @@ OpenTimedWindowGui(hwnd, tabName := "", exe := "") {
         : (StrLen(title) > limit ? SubStr(title, 1, limit - 3) "..." : title)
 
     tw := Gui("+AlwaysOnTop +ToolWindow"
-        , isTab ? "Guardar pestaña con timer" : "Guardar ventana con timer")
+        , isClose ? (isTab ? "Cerrar pestaña con timer" : "Cerrar ventana con timer")
+                  : (isTab ? "Guardar pestaña con timer" : "Guardar ventana con timer"))
     tw.MarginX := 14
     tw.MarginY := 12
     tw.SetFont("s9", "Segoe UI")
     tw.Add("Text", "xm w380", prefix shown)
     ; Aviso (no bloqueante) si esto mismo ya tenía un timer pendiente.
-    existing := isTab ? FindTimedTabByName(tabName) : FindTimedWindowByHwnd(hwnd)
+    existing := isTab ? FindTimedTabByName(tabName, action) : FindTimedWindowByHwnd(hwnd, action)
     if existing
         tw.Add("Text", "xm+5 y+8 w380 cRed"
             , "Ya tenía un timer corriendo (" FormatRemaining(existing["due"]) "). Se suma otro.")
-    tw.Add("Text", "xm y+12", isTab ? "Volver a ella en:" : "Abrirla en:")
+    tw.Add("Text", "xm y+12"
+        , isClose ? "Cerrarla en:" : (isTab ? "Volver a ella en:" : "Abrirla en:"))
     delayEdit := tw.Add("Edit", "xm y+4 w110", gTimedLastDelay)
     tw.Add("Text", "x+8 yp+4 cGray", "minutos")
     tw.Add("Text", "xm y+12 w380 cGray"
         , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
-          . "0 la abre ahora mismo.")
-    aotChk := tw.Add("CheckBox", "xm y+12", "Dejarla Always on top al abrirla")
+          . (isClose ? "0 la cierra ahora mismo." : "0 la abre ahora mismo."))
+    ; El "Always on top" solo tiene sentido para los timers que abren.
+    aotChk := isClose ? ""
+        : tw.Add("CheckBox", "xm y+12", "Dejarla Always on top al abrirla")
     startBtn := tw.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
     cancelBtn := tw.Add("Button", "x+10 w130", "Cancelar")
     startBtn.OnEvent("Click"
-        , (*) => TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName, exe))
+        , (*) => TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName, exe, action))
     cancelBtn.OnEvent("Click", (*) => tw.Destroy())
     tw.OnEvent("Close", (*) => tw.Destroy())
     tw.OnEvent("Escape", (*) => tw.Destroy())
@@ -1680,21 +1751,24 @@ ParseTimedDelaySeconds(text) {
     return -1
 }
 
-TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName := "", exe := "") {
+TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName := "", exe := "", action := "open") {
     global gTimedWindows, gTimedNextId, gTimedLastDelay
     isTab := (tabName != "")
+    isClose := (action = "close")
+    dlgTitle := isClose ? (isTab ? "Cerrar pestaña" : "Cerrar ventana")
+                        : (isTab ? "Timer de pestaña" : "Timer de ventana")
     typed := Trim(delayEdit.Value)
     totalSec := ParseTimedDelaySeconds(typed)
     if (totalSec < 0) {
         tw.Opt("+OwnDialogs")
         MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
-            , isTab ? "Timer de pestaña" : "Timer de ventana", 48
+            , dlgTitle, 48
         return
     }
     ; La pestaña puede sobrevivir a su ventana (se la arrastra a otra), así que
     ; solo exigimos que la ventana siga viva para los timers de ventana.
     if (!isTab && !WinExist("ahk_id " hwnd)) {
-        MsgBox "La ventana ya no existe.", "Timer de ventana", 48
+        MsgBox "La ventana ya no existe.", dlgTitle, 48
         tw.Destroy()
         return
     }
@@ -1703,25 +1777,28 @@ TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName := "", exe := "") {
     item := Map(
         "id", gTimedNextId,
         "kind", isTab ? "tab" : "win",
+        "action", action,
         "hwnd", hwnd,
         "title", (title = "" ? "(sin título)" : title),
         "due", A_TickCount + totalSec * 1000,
-        "aot", aotChk.Value ? true : false)
+        "aot", (aotChk && aotChk.Value) ? true : false)
     if isTab {
         item["tab"] := tabName
         item["exe"] := exe
     }
     tw.Destroy()
-    ; 0 => sin cuenta regresiva: se abre en el acto, como "Abrir ahora" de la
-    ; GUI de administración. No entra a la lista de timers.
+    ; 0 => sin cuenta regresiva: se ejecuta en el acto, como "Abrir/cerrar ya"
+    ; de la GUI de administración. No entra a la lista de timers.
     if (totalSec = 0) {
-        OpenTimedWindow(item)
+        RunTimedItem(item)
         return
     }
     gTimedWindows.Push(item)
     gTimedNextId += 1
-    TrayTip (isTab ? "Timer de pestaña creado" : "Timer creado")
-        , "Se abre en " FormatSeconds(totalSec) "`n" title "`nTimers activos: " gTimedWindows.Length, 2
+    TrayTip (isClose ? (isTab ? "Cierre de pestaña programado" : "Cierre de ventana programado")
+                     : (isTab ? "Timer de pestaña creado" : "Timer creado"))
+        , (isClose ? "Se cierra en " : "Se abre en ") FormatSeconds(totalSec)
+          . "`n" title "`nTimers activos: " gTimedWindows.Length, 2
     RebuildTimedWindowsGui()
 }
 
@@ -1742,7 +1819,7 @@ CheckTimedWindows() {
         } else if (A_TickCount >= item["due"]) {
             gTimedWindows.RemoveAt(i)
             changed := true
-            OpenTimedWindow(item)
+            RunTimedItem(item)
         }
         i -= 1
     }
@@ -1750,9 +1827,18 @@ CheckTimedWindows() {
         RebuildTimedWindowsGui()
 }
 
-OpenTimedWindow(item) {
+; Ejecuta el item vencido: lo abre o lo cierra, según kind y action.
+RunTimedItem(item) {
+    isClose := (item["action"] = "close")
     if (item["kind"] = "tab") {
-        OpenTimedTab(item)
+        if isClose
+            CloseTimedTab(item)
+        else
+            OpenTimedTab(item)
+        return
+    }
+    if isClose {
+        CloseTimedWindow(item)
         return
     }
     hwnd := item["hwnd"]
@@ -1768,9 +1854,27 @@ OpenTimedWindow(item) {
     TrayTip "Ventana abierta", item["title"], 2
 }
 
+; WinClose manda WM_CLOSE, así que la aplicación todavía puede preguntar si
+; guardar: cerrar con timer nunca descarta trabajo por su cuenta.
+CloseTimedWindow(item) {
+    hwnd := item["hwnd"]
+    if !WinExist("ahk_id " hwnd) {
+        TrayTip "Ventana ya cerrada", item["title"], 2
+        return
+    }
+    title := item["title"]
+    try {
+        live := WinGetTitle("ahk_id " hwnd)
+        if (live != "")
+            title := live
+    }
+    try WinClose "ahk_id " hwnd
+    TrayTip "Ventana cerrada", title, 2
+}
+
 ; Busca la pestaña por título (primero en el navegador donde se guardó, después
-; en los demás), la selecciona y activa su ventana.
-OpenTimedTab(item) {
+; en los demás). Devuelve [hwnd, elemento UIA] o "" si ya no está abierta.
+FindTimedTabTarget(item) {
     global gTimedBrowserExes
     exes := []
     if (item["exe"] != "")
@@ -1795,20 +1899,53 @@ OpenTimedTab(item) {
     ; parcial (los títulos de página cambian solos: "(3) Bandeja...", etc.).
     for exact in [true, false] {
         for hwnd in hwnds {
-            if (tab := FindBrowserTab(hwnd, item["tab"], exact)) {
-                try {
-                    if (WinGetMinMax("ahk_id " hwnd) = -1)
-                        WinRestore "ahk_id " hwnd
-                    tab.Select()
-                    WinActivate "ahk_id " hwnd
-                }
-                TrayTip "Pestaña abierta", item["title"], 2
-                return
-            }
+            if (tab := FindBrowserTab(hwnd, item["tab"], exact))
+                return [hwnd, tab]
         }
     }
-    TrayTip "Pestaña no encontrada"
-        , "Ya no está abierta:`n" item["title"], 2
+    return ""
+}
+
+; Restaura la ventana, selecciona la pestaña y trae la ventana al frente.
+ActivateTimedTab(hwnd, tab) {
+    try {
+        if (WinGetMinMax("ahk_id " hwnd) = -1)
+            WinRestore "ahk_id " hwnd
+        tab.Select()
+        WinActivate "ahk_id " hwnd
+    } catch
+        return false
+    return true
+}
+
+OpenTimedTab(item) {
+    if !(target := FindTimedTabTarget(item)) {
+        TrayTip "Pestaña no encontrada"
+            , "Ya no está abierta:`n" item["title"], 2
+        return
+    }
+    ActivateTimedTab(target[1], target[2])
+    TrayTip "Pestaña abierta", item["title"], 2
+}
+
+; Cerrar una pestaña es seleccionarla y mandarle Ctrl+W: ninguno de los tres
+; navegadores expone por UIA un "cerrar pestaña" que se pueda invocar. Por eso
+; primero hay que confirmar que la ventana quedó activa -- si no, el Ctrl+W
+; terminaría cerrando la pestaña de otro lado.
+CloseTimedTab(item) {
+    if !(target := FindTimedTabTarget(item)) {
+        TrayTip "Pestaña no encontrada"
+            , "Ya no está abierta:`n" item["title"], 2
+        return
+    }
+    hwnd := target[1]
+    if (!ActivateTimedTab(hwnd, target[2]) || !WinWaitActive("ahk_id " hwnd, , 1)) {
+        TrayTip "No pude cerrar la pestaña"
+            , "La ventana no llegó a activarse:`n" item["title"], 2
+        return
+    }
+    Send "^w"
+    TrayTip "Pestaña cerrada", item["title"], 2
 }
 
 FindBrowserTab(hwnd, name, exact) {
@@ -1837,22 +1974,28 @@ FindBrowserTab(hwnd, name, exact) {
     return ""
 }
 
-FindTimedWindowByHwnd(hwnd) {
+FindTimedWindowByHwnd(hwnd, action := "open") {
     global gTimedWindows
     for item in gTimedWindows {
-        if (item["kind"] = "win" && item["hwnd"] = hwnd)
+        if (item["kind"] = "win" && item["action"] = action && item["hwnd"] = hwnd)
             return item
     }
     return ""
 }
 
-FindTimedTabByName(name) {
+FindTimedTabByName(name, action := "open") {
     global gTimedWindows
     for item in gTimedWindows {
-        if (item["kind"] = "tab" && item["tab"] = name)
+        if (item["kind"] = "tab" && item["action"] = action && item["tab"] = name)
             return item
     }
     return ""
+}
+
+; Texto de la columna "Tipo" de la GUI de administración.
+TimedItemKindLabel(item) {
+    return (item["action"] = "close" ? "Cerrar " : "Abrir ")
+         . (item["kind"] = "tab" ? "pestaña" : "ventana")
 }
 
 FormatRemaining(due) {
@@ -1883,22 +2026,22 @@ ShowTimedWindowsGui() {
     lv := g.Add("ListView", "xm w540 r8 Grid -Multi", ["#", "Restante", "Tipo", "Ventana / pestaña", "Top"])
     lv.ModifyCol(1, 30)
     lv.ModifyCol(2, 70)
-    lv.ModifyCol(3, 60)
-    lv.ModifyCol(4, 330)
+    lv.ModifyCol(3, 100)   ; entran "Cerrar ventana" / "Cerrar pestaña"
+    lv.ModifyCol(4, 290)
     lv.ModifyCol(5, 40)
     add1Btn := g.Add("Button", "xm w76", "+1 min")
     add5Btn := g.Add("Button", "x+6 w76", "+5 min")
     sub1Btn := g.Add("Button", "x+6 w76", "-1 min")
-    openBtn := g.Add("Button", "x+6 w96", "Abrir ahora")
+    openBtn := g.Add("Button", "x+6 w96", "Abrir/cerrar ya")
     delBtn := g.Add("Button", "x+6 w86", "Eliminar")
     closeBtn := g.Add("Button", "x+6 w76", "Cerrar")
     add1Btn.OnEvent("Click", (*) => TimedGuiAddTime(60))
     add5Btn.OnEvent("Click", (*) => TimedGuiAddTime(300))
     sub1Btn.OnEvent("Click", (*) => TimedGuiAddTime(-60))
-    openBtn.OnEvent("Click", (*) => TimedGuiOpenNow())
+    openBtn.OnEvent("Click", (*) => TimedGuiRunNow())
     delBtn.OnEvent("Click", (*) => TimedGuiDelete())
     closeBtn.OnEvent("Click", (*) => CloseTimedWindowsGui())
-    lv.OnEvent("DoubleClick", (*) => TimedGuiOpenNow())
+    lv.OnEvent("DoubleClick", (*) => TimedGuiRunNow())
     g.OnEvent("Close", (*) => CloseTimedWindowsGui())
     g.OnEvent("Escape", (*) => CloseTimedWindowsGui())
     gTimedGui := g
@@ -1941,14 +2084,15 @@ RebuildTimedWindowsGui() {
         }
         gTimedGuiIds.Push(item["id"])
         gTimedGuiLV.Add("", i, FormatRemaining(item["due"])
-            , item["kind"] = "tab" ? "Pestaña" : "Ventana", title, item["aot"] ? "Sí" : "")
+            , TimedItemKindLabel(item), title, item["aot"] ? "Sí" : "")
     }
     gTimedGuiLV.Opt("+Redraw")
     if (sel >= 1 && sel <= gTimedWindows.Length)
         gTimedGuiLV.Modify(sel, "Select Focus")
+    hint := "   ·  Win+F6 abrir ventana · Ctrl+Win+F6 abrir pestaña · Win+Alt+U + F4 cerrar"
     gTimedGuiHdr.Text := gTimedWindows.Length
-        ? "Timers corriendo: " gTimedWindows.Length "   (Win+F6 ventana, Ctrl+Win+F6 pestaña)"
-        : "No hay timers corriendo   (Win+F6 ventana, Ctrl+Win+F6 pestaña)"
+        ? "Timers corriendo: " gTimedWindows.Length hint
+        : "No hay timers corriendo" hint
 }
 
 ; Solo actualiza la columna "Restante" para no perder la selección ni parpadear.
@@ -1995,12 +2139,12 @@ TimedGuiAddTime(deltaSec) {
     TickTimedWindowsGui()
 }
 
-TimedGuiOpenNow() {
+TimedGuiRunNow() {
     global gTimedWindows
     if !(idx := TimedGuiSelectedIndex())
         return
     item := gTimedWindows.RemoveAt(idx)
-    OpenTimedWindow(item)
+    RunTimedItem(item)
     RebuildTimedWindowsGui()
 }
 
@@ -2342,6 +2486,9 @@ ReferenceGuiResize(thisGui, minMax, w, h) {
 ;   con HotIf(). Por eso: los chords (*e, *i) se apagan desde su tecla de
 ;   entrada (Ctrl+Alt+5 y Win+Alt+U), ~Escape/~!Space del Manager quedan fuera
 ;   de la lista, y #+MButton (createTXT instantáneo) usa el tipo "flag".
+;   El F4 de "cerrar con timer" también usa "flag", pero por otro motivo: son
+;   dos acciones distintas (una o dos pulsaciones) sobre el mismo #HotIf, y
+;   Win+Alt+U lee esos flags para decidir si arma el F4 o no.
 ;
 ;   MANTENIMIENTO: gHKSections repite hotkeys y descripciones que también viven
 ;   en AHK_Unified_Master_Referencia_ie.html, o sea que hay tres fuentes de
@@ -2493,7 +2640,13 @@ global gHKSections := [
     { id: "timed_windows", title: "Ventanas con timer", src: "Nuevo", items: [
         { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece (25, 90m, 2h, 1h30, 45s, @17:45)" },
         { id: "tab",   type: "hotkey", hk: "^#F6", label: "Ctrl + Win + F6",  desc: "Guarda la pestaña activa del navegador y elige en cuánto tiempo vuelve (25, 90m, 2h, 1h30, 45s, @17:45)" },
-        { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo (sumar/restar tiempo, abrir ya, eliminar)" } ] },
+        { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo, de abrir y de cerrar (sumar/restar tiempo, ejecutar ya, eliminar)" } ] },
+
+    { id: "timed_close", title: "Cerrar ventanas y pestañas con timer", src: "Nuevo", items: [
+        { id: "tab", type: "flag", hk: "", label: "Win + Alt + U, luego F4",
+          desc: "Programa el cierre de la pestaña activa del navegador (25, 90m, 2h, 1h30, 45s, @17:45)" },
+        { id: "win", type: "flag", hk: "", label: "Win + Alt + U, luego F4 F4",
+          desc: "Programa el cierre de la ventana activa; el segundo F4 tiene 450 ms para llegar" } ] },
 
     { id: "sheets", title: "Accesos a Google Sheets", src: "url_chrome.ahk", items: [
         { id: "window", type: "hotkey", hk: "^!g",  label: "Ctrl + Alt + G",         desc: "Abre la planilla en una ventana nueva de Chrome" },
