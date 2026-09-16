@@ -415,7 +415,7 @@ CustomSnoozeStamp() {
             return DateAdd(A_Now, mins, "Minutes")
         }
 
-        res := AskSnoozeValue("Snooze until...", "Enter a snooze time (((yyyy/yy)-MM-dd) HH:mm)", untTxt, untErr)
+        res := AskSnoozeValue("Snooze until...", "Enter a snooze time (((yyyy/yy)-MM-dd) HH:mm) or Tomorrow HH:mm", untTxt, untErr)
         if (res.action = "cancel")
             return DateAdd(A_Now, 2, "Minutes")
         if (res.action = "back") {
@@ -428,7 +428,7 @@ CustomSnoozeStamp() {
             continue
         }
         if ((stamp := ParseUntilStamp(untTxt)) = "") {
-            untErr := "Invalid format. Use (yyyy)(yy)-MM-dd HH:mm."
+            untErr := "Invalid format. Use (yyyy)(yy)-MM-dd HH:mm) or Tomorrow HH:mm."
             continue
         }
         try                        ; the regexes accept 02-31 and 25:00, DateDiff does not
@@ -483,6 +483,14 @@ AskSnoozeValue(title, promptText, initialValue := "", errorText := "") {
 
 ; Whole minutes, or -1 when the text matches none of the duration formats.
 ParseDurationMinutes(txt) {
+    if RegExMatch(txt, "^(\d+)w(\d+)d(\d+)h(\d+)m$", &m)
+        return (m[1] * 7 * 24 * 60) + (m[2] * 24 * 60) + (m[3] * 60) + m[4]
+    if RegExMatch(txt, "^(\d+)d(\d+)h$", &m)
+        return (m[1] * 24 * 60) + (m[2] * 60)
+    if RegExMatch(txt, "^(\d+)d$", &m)
+        return m[1] * 24 * 60
+    if RegExMatch(txt, "^(\d+)d(\d+)h(\d+)m$", &m)
+        return (m[1] * 24 * 60) + (m[2] * 60) + m[3]
     if RegExMatch(txt, "^(\d+)h(\d+)m$", &m)
         return (m[1] * 60) + m[2]
     if RegExMatch(txt, "^(\d+)h$", &m)
@@ -496,6 +504,12 @@ ParseDurationMinutes(txt) {
 
 ; YYYYMMDDHH24MI00, or "" when the text matches none of the datetime formats.
 ParseUntilStamp(txt) {
+    if RegExMatch(txt, "^(?i)Tom(orrow)? (\d{2}):(\d{2})$", &m)
+        return SubStr(DateAdd(A_Now, 1, "Days"), 1, 8) m[1] m[2] "00"
+    if RegExMatch(txt, "^(\d{2})/(\d{2})/(\d{2}) (\d{2}):(\d{2})$", &m)
+        return "20" m[1] m[2] m[3] m[4] m[5] "00"
+    if RegExMatch(txt, "^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2})$", &m)
+        return m[1] m[2] m[3] m[4] m[5] "00"
     if RegExMatch(txt, "^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m)
         return m[1] m[2] m[3] m[4] m[5] "00"
     if RegExMatch(txt, "^(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$", &m)
@@ -800,10 +814,12 @@ OpenEditor(id := 0, dupeFrom := 0) {
     TimeCtl.Value := stamp
 
     EditGui.Add("Text", "xm y+12 w60", "Quick set")
-    b15 := EditGui.Add("Button", "x+8 yp-4 w70", "in 15 m")
-    b1h := EditGui.Add("Button", "x+6 yp w70", "in 1 h")
-    b3h := EditGui.Add("Button", "x+6 yp w70", "in 3 h")
-    b9  := EditGui.Add("Button", "x+6 yp w110", "tomorrow 9:00")
+    b15 := EditGui.Add("Button", "x+8 yp-4 w70", "in 15m")
+    b1h := EditGui.Add("Button", "x+6 yp w70", "in 1h")
+    b3h := EditGui.Add("Button", "x+6 yp w70", "in 3h")
+    b9  := EditGui.Add("Button", "x+6 yp w80", "tom 9:00")
+    bCustom := EditGui.Add("Button", "x+6 yp w80", "Custom...")
+    bCustom.OnEvent("Click", (*) => SetEditorStamp(SnoozeStamp("Custom...")))
 
     b15.OnEvent("Click", (*) => SetEditorStamp(DateAdd(A_Now, 15, "Minutes")))
     b1h.OnEvent("Click", (*) => SetEditorStamp(DateAdd(A_Now, 1, "Hours")))
