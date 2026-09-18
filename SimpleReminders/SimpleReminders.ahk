@@ -504,8 +504,39 @@ ParseDurationMinutes(txt) {
 
 ; YYYYMMDDHH24MI00, or "" when the text matches none of the datetime formats.
 ParseUntilStamp(txt) {
+    days := Map(
+        "sun", 1, "sunday", 1,
+        "mon", 2, "monday", 2,
+        "tue", 3, "tuesday", 3,
+        "wed", 4, "wednesday", 4,
+        "thu", 5, "thursday", 5,
+        "fri", 6, "friday", 6,
+        "sat", 7, "saturday", 7
+    )
+    if RegExMatch(txt, "^[A-Za-z]+$"){ ; text only - snooze default (9am)
+        if days.Has(StrLower(txt))
+            return SubStr(DateAdd(A_Now, Mod(days[StrLower(txt)] - A_WDay + 7, 7), "Days"), 1, 8) "090000"
+        if StrLower(txt) = "today"
+            return SubStr(A_Now, 1, 8) "090000"
+        if StrLower(txt) = "tomorrow"
+            return SubStr(DateAdd(A_Now, 1, "Days"), 1, 8) "090000"
+        return ""
+    }
+    ; if RegExMatch(txt, "^(?i)Fri(day)$", &m)
+    ;    dif_days := (5 + 7 - A_WDay) % 7
+    ;    return SubStr(DateAdd(A_Now, dif_days, "Days"), 1, 8) "090000"
+
+    if RegExMatch(txt, "^(?i)Today (\d{2}):(\d{2})$", &m)
+        return SubStr(A_Now, 1, 8) m[1] m[2] "00"
     if RegExMatch(txt, "^(?i)Tom(orrow)? (\d{2}):(\d{2})$", &m)
         return SubStr(DateAdd(A_Now, 1, "Days"), 1, 8) m[1] m[2] "00"
+    if RegExMatch(txt, "^([A-Za-z]+) (\d{2}):(\d{2})$", &m) {
+        day := days.Has(StrLower(m[1])) ? days[StrLower(m[1])] : 0
+        if !day
+            return ""
+        dif_days := Mod(day - A_WDay + 7, 7)
+        return SubStr(DateAdd(A_Now, dif_days, "Days"), 1, 8) m[2] m[3] "00"
+    }
     if RegExMatch(txt, "^(\d{2})/(\d{2})/(\d{2}) (\d{2}):(\d{2})$", &m)
         return "20" m[1] m[2] m[3] m[4] m[5] "00"
     if RegExMatch(txt, "^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2})$", &m)
