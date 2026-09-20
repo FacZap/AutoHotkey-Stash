@@ -1,3 +1,9 @@
 traymond.dat
 emoji.exe
 push_to_personal.bat
+
+# Base de recordatorios en vivo: datos personales, y SimpleReminders.ahk la
+# reescribe entera en cada alta / edicion / snooze / baja.
+SimpleReminders/reminders.csv
+# Tildes del lanzador de scripts auxiliares (estado de cada maquina).
+aux-scripts.ini

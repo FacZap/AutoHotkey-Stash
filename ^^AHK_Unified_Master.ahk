@@ -1,0 +1,3839 @@
+﻿#Requires AutoHotkey v2.0.18+
+#SingleInstance Force
+#UseHook
+#Include UIA.ahk
+
+; ============================================================================
+;  AHK_Unified_Master.ahk
+;  Generado automáticamente para reemplazar la cadena de inicio:
+;     ^RUN_MANAGER.ahk  ->  AHK_Manager.ahk
+;     ^RUN_starters.ahk ->  23 scripts individuales + RBTray.exe + Wise Reminder
+;
+;  Todo el contenido funcional de esos archivos vive aquí, reescrito a
+;  sintaxis AutoHotkey v2 (varios originales estaban en sintaxis v1 y no
+;  pueden coexistir con AHK_Manager.ahk, que requiere v2, dentro de un mismo
+;  proceso). Los archivos originales NO fueron borrados ni modificados.
+;
+;  Cambios de comportamiento a tener en cuenta:
+;   - Escape y Alt+Espacio (cerrar/recargar) del Manager ahora solo actúan
+;     cuando la ventana del Manager está activa (antes era global porque
+;     el Manager corría en su propio proceso).
+;   - Cerrar TODO este script unificado quedó exclusivamente en el botón "Quit"
+;     del Manager (o seleccionar este script en la lista y darle "Kill"). La
+;     tecla Escape, con la ventana del Manager activa, solo oculta esa ventana
+;     -- igual que la X -- y deja todos los hotkeys andando.
+;   - Ctrl+Alt+R ahora muestra/reactiva la ventana del Manager en lugar de
+;     lanzar un proceso nuevo.
+; ============================================================================
+
+TraySetIcon "C:\Windows\System32\Shell32.dll", 245
+
+; ---- Variables globales usadas por distintos bloques ----
+VSCodePath := "C:\Users\" A_UserName "\AppData\Local\Programs\Microsoft VS Code\Code.exe"
+
+counter := 0
+lastControlPress := 0
+
+; ---- Ciclador (Win+F4): la lista guarda ventanas Y pestañas del navegador ----
+; Cada entrada es un Map, con una de estas dos formas:
+;   ventana:  Map("kind","win", "hwnd",hwnd)
+;   pestaña:  Map("kind","tab", "hwnd",hwnd, "exe",exe, "tab",nombreNormalizado)
+; Las claves de la pestaña son, a propósito, las mismas que lee
+; FindTimedTabTarget() (sección "Ventanas con timer"): así esa función -- y
+; ActivateTimedTab() -- se reutilizan tal cual, sin código UIA nuevo acá.
+global gCyclerItems := []
+global gIndex := 0
+global gCyclerFilter := "all"       ; qué recorre Win+F4: "all" | "tab" | "win"
+global gListGuiVisible := false
+global cyclerListGui := ""
+
+clickX := 600
+clickY := 40
+clickXX := 500
+clickYY := 150
+
+; ---- idle_edit_v2: umbral de inactividad (0 = desactivado, por defecto) ----
+global idleMinutes := 0
+global idleThresholdMs := idleMinutes * 60 * 1000
+
+; ============================================================================
+; arrows-keystrokes.ahk
+; ============================================================================
+^!W::Send "{Up}"
+^!S::Send "{Down}"
+<^CapsLock::Send "{Enter}"   ; Ctrl izquierdo + Bloq Mayús -> Enter (anula el toggle de Mayús)
++Delete::Send "{Backspace}"   ; Shift+Supr -> Backspace
+
+; ============================================================================
+; autodate.ahk
+; ============================================================================
+:R*?:kddd::
+{
+    SendInput FormatTime(, "dd/MM/yy")
+}
+:R*?:ksss::
+{
+    SendInput FormatTime(, "dd/MM")
+}
+:R*?:knnn::
+{
+    SendInput FormatTime(, "dddd")
+}
+:R*?:kxxx::
+{
+    SendInput FormatTime(, "yyMMdd_HHmm")
+}
+:R*?:kaaa::
+{
+    SendInput FormatTime(, "yyMMdd")
+}
+:R*?:kjjd::
+{
+    SendInput FormatTime(, "dd-MM-yy")
+}
+:R*?:kyyy::
+{
+    SendInput FormatTime(, "dd-MM-yy HH:mm")
+}
+:R*?:khhh::
+{
+    SendInput FormatTime(, "HH:mm")
+}
+; kfz, kzf y el resto de los datos personales (mails, DNI, teléfono, legajos)
+; viven en ahk_STARTUP\!_personal.ahk. *i = opcional: si no existe, no da error.
+; Sus hotstrings (::x::texto) tienen la misma sintaxis en v1 y en v2.
+#Include *i %A_ScriptDir%\ahk_STARTUP\!_personal.ahk
+
+; ============================================================================
+; backwards-slash.ahk
+; ============================================================================
++NumpadDiv::
+{
+    Send "\"
+}
+
+; ============================================================================
+; brightness.ahk
+; ============================================================================
+#,::
+{
+    AdjustScreenBrightness(-5)
+}
+#.::
+{
+    AdjustScreenBrightness(5)
+}
+; AltGr + RePág / AvPág (paso 10), como el Brightness.ahk de la laptop personal:
+; AvPág sube y RePág baja.
+RAlt & PgDn::AdjustScreenBrightness(10)
+RAlt & PgUp::AdjustScreenBrightness(-10)
+
+AdjustScreenBrightness(step) {
+    static service := "winmgmts:{impersonationLevel=impersonate}!\\.\root\WMI"
+    monitors := ComObjGet(service).ExecQuery("SELECT * FROM WmiMonitorBrightness WHERE Active=TRUE")
+    monMethods := ComObjGet(service).ExecQuery("SELECT * FROM wmiMonitorBrightNessMethods WHERE Active=TRUE")
+    curr := 0
+    for i in monitors {
+        curr := i.CurrentBrightness
+        break
+    }
+    toSet := curr + step
+    if (toSet < 10)
+        toSet := 10
+    if (toSet > 100)
+        toSet := 100
+    for i in monMethods {
+        i.WmiSetBrightness(1, toSet)
+        break
+    }
+    BrightnessOSD()
+}
+
+BrightnessOSD() {
+    static PostMessagePtr := DllCall("GetProcAddress", "Ptr", DllCall("GetModuleHandle", "Str", "user32.dll", "Ptr"), "AStr", "PostMessageW", "Ptr")
+    static WM_SHELLHOOK := DllCall("RegisterWindowMessage", "Str", "SHELLHOOK", "UInt")
+    static FindWindowPtr := DllCall("GetProcAddress", "Ptr", DllCall("GetModuleHandle", "Str", "user32.dll", "Ptr"), "AStr", "FindWindowW", "Ptr")
+    HWND := DllCall(FindWindowPtr, "Str", "NativeHWNDHost", "Str", "", "Ptr")
+    if !HWND {
+        try {
+            if (shellProvider := ComObject("{C2F03A33-21F5-47FA-B4BB-156362A2F239}", "{00000000-0000-0000-C000-000000000046}")) {
+                try {
+                    if (flyoutDisp := ComObjQuery(shellProvider, "{41f9d2fb-7834-4ab6-8b1b-73e74064b465}", "{41f9d2fb-7834-4ab6-8b1b-73e74064b465}")) {
+                        try {
+                            ptr := ComObjValue(flyoutDisp)
+                            vtable := NumGet(ptr, "Ptr")
+                            fnPtr := NumGet(vtable + 3 * A_PtrSize, "Ptr")
+                            DllCall(fnPtr, "Ptr", ptr, "Int", 0, "UInt", 0)
+                        }
+                        ObjRelease(flyoutDisp)
+                    }
+                }
+                ObjRelease(shellProvider)
+            }
+        }
+        HWND := DllCall(FindWindowPtr, "Str", "NativeHWNDHost", "Str", "", "Ptr")
+    }
+    DllCall(PostMessagePtr, "Ptr", HWND, "UInt", WM_SHELLHOOK, "Ptr", 0x37, "Ptr", 0)
+}
+
+; ============================================================================
+; checkmark.ahk
+; ============================================================================
+!^F10::Send "{✔}"
+!^F9::Send "{↑}"
+; New behavior
+^NumpadDot::Send "{;}"
+!NumpadDot::Send "{:}"
+
+; ============================================================================
+; dashes.ahk
+; ============================================================================
+^NumpadSub::Send "{—}"
+!NumpadSub::Send "{–}"
+
+; ============================================================================
+; calendar.ahk
+; ============================================================================
+#Numpad5::ShowCalendarGui()
+
+ShowCalendarGui() {
+    cg := Gui("+AlwaysOnTop +ToolWindow", "Calendario")
+    cg.BackColor := "FFFFFF"
+    cg.SetFont("s10", "Segoe UI")
+    cg.Add("Text", "x10 y10 w290 Center", "Selecciona una fecha")
+    mc := cg.Add("MonthCal", "x10 y35 vFechaSeleccionada")
+    btnCopiar := cg.Add("Button", "x10 y210 w140 Default", "Copiar  (Enter)")
+    btnCopiar.OnEvent("Click", (*) => CopiarFechaCal(cg, mc))
+    btnCancelar := cg.Add("Button", "x160 y210 w140", "Cancelar  (Esc)")
+    btnCancelar.OnEvent("Click", (*) => cg.Destroy())
+    cg.OnEvent("Close", (*) => cg.Destroy())
+    cg.OnEvent("Escape", (*) => cg.Destroy())
+    cg.Show("w310")
+}
+
+CopiarFechaCal(cg, mc) {
+    Fecha := FormatTime(mc.Value, "dd/MM/yyyy")
+    A_Clipboard := Fecha
+    ToolTip "Copiado: " Fecha
+    SetTimer () => ToolTip(), -2000
+    cg.Destroy()
+}
+
+; ============================================================================
+; logger.ahk
+; ============================================================================
+!^F7::
+{
+    SendInput "-------------------"
+    SendInput "{Enter}"
+    SendInput "{Space}"
+    SendInput FormatTime(, "yy/MM/dd HH:mm:ss")
+    SendInput "{Enter}"
+    SendInput "-------------------"
+}
+
+!^l::
+{
+    ih := InputHook("L1 T2")
+    ih.Start()
+    ih.Wait()
+    if (ih.EndReason = "Timeout")
+        return
+    UserInput := ih.Input
+    if (UserInput = "1") {
+        SendInput "---"
+        SendInput "{Enter}"
+    } else if (UserInput = "2") {
+        SendInput "{Space}"
+        SendInput "----------------------"
+        SendInput "{Enter}"
+    } else {
+        return
+    }
+}
+
+; ============================================================================
+; Chord: Ctrl+Alt+5  ->  luego  E  (< 2 s)  ->  escribe "%%end flag"
+;   Presioná Ctrl+Alt+5 y, dentro de 2 segundos, la tecla E.
+;   Si la E llega a tiempo, escribe el texto literal "%%end flag".
+; ============================================================================
+global waitingForEndFlagKey := false   ; true tras Ctrl+Alt+5, esperando la "E" (< 2 s)
+
+^!5::
+{
+    global waitingForEndFlagKey
+    waitingForEndFlagKey := true
+    SetTimer(ResetEndFlagWait, -2000)   ; la "E" debe llegar en < 2 s
+}
+
+; La "E" solo es hotkey durante esa ventana de 2 s (con o sin modificadores).
+#HotIf waitingForEndFlagKey
+*e::
+{
+    global waitingForEndFlagKey
+    waitingForEndFlagKey := false
+    SetTimer(ResetEndFlagWait, 0)
+    SendText "%%end flag"
+}
+#HotIf
+
+ResetEndFlagWait() {
+    global waitingForEndFlagKey
+    waitingForEndFlagKey := false
+}
+
+; ============================================================================
+; move_resize.ahk
+; ============================================================================
+Alt & LButton::
+{
+    CoordMode "Mouse", "Screen"
+    MouseGetPos &origMouseX, &origMouseY, &winId
+    while GetKeyState("LButton", "P") {
+        MouseGetPos &mouseX, &mouseY
+        WinGetPos &winX, &winY, , , "ahk_id " winId
+        deltaX := mouseX - origMouseX
+        deltaY := mouseY - origMouseY
+        origMouseX := mouseX
+        origMouseY := mouseY
+        SetWinDelay -1
+        WinMove winX + deltaX, winY + deltaY, , , "ahk_id " winId
+        Sleep 10
+    }
+}
+
+Alt & RButton::
+{
+    CoordMode "Mouse", "Screen"
+    MouseGetPos &origMouseX, &origMouseY, &winId
+    WinGetPos &winX, &winY, &winW, &winH, "ahk_id " winId
+    relX := (origMouseX - winX) / winW - .5
+    relY := (origMouseY - winY) / winH - .5
+    resizeLeft := 2 * relX + Abs(relY) < 0
+    resizeTop := 2 * relY + Abs(relX) < 0
+    resizeRight := 2 * relX - Abs(relY) > 0
+    resizeBottom := 2 * relY - Abs(relX) > 0
+    while GetKeyState("RButton", "P") {
+        MouseGetPos &mouseX, &mouseY
+        WinGetPos &winX, &winY, &winW, &winH, "ahk_id " winId
+        deltaX := mouseX - origMouseX
+        deltaY := mouseY - origMouseY
+        origMouseX := mouseX
+        origMouseY := mouseY
+        SetWinDelay -1
+        newWinX := resizeLeft ? winX + deltaX : winX
+        newWinY := resizeTop ? winY + deltaY : winY
+        newWinW := winW + winX - newWinX + (resizeRight ? deltaX : 0)
+        newWinH := winH + winY - newWinY + (resizeBottom ? deltaY : 0)
+        WinMove newWinX, newWinY, newWinW, newWinH, "ahk_id " winId
+        Sleep 10
+    }
+}
+
+; ============================================================================
+; mute.ahk
+; ============================================================================
+#Numpad3::
+{
+    if !SoundGetMute()
+        Send "{Volume_Mute}"
+}
+
+; ============================================================================
+; pauseplay.ahk
+; ============================================================================
+^!A::Send "{Media_Play_Pause}"
+RAlt & Numpad5::Send "{Media_Play_Pause}"
+^!Left::Send "{Media_Prev}"
+^!Right::Send "{Media_Next}"
+^!Numpad4::Send "{Media_Prev}"
+^!Numpad6::Send "{Media_Next}"
+^!Numpad3::Send "{Volume_Mute}"   ; Numpad* liberado para idle_edit (Win+Numpad*)
+^!NumpadAdd::Send "{Volume_Up}"
+^!NumpadSub::Send "{Volume_Down}"
+^!Numpad8::Send "{Volume_Up}"
+^!Numpad2::Send "{Volume_Down}"
+
+; ============================================================================
+; idle_edit_v2.ahk
+;   Oculta todo al escritorio (Win+D) tras un período de inactividad física
+;   y restaura al primer input. Umbral configurable con Win+Numpad*.
+;   0 = desactivado (por defecto al iniciar).
+; ============================================================================
+if (idleMinutes > 0)          ; arranca el monitoreo solo si viene habilitado
+    SetTimer(IdleCheck, 1000)
+
+#NumpadMult:: {
+    global idleMinutes, idleThresholdMs
+
+    ib := InputBox("Enter minutes of inactivity before hiding to desktop (0 = disabled):"
+                 , "Idle time threshold", "w320 h150", idleMinutes)
+    if (ib.Result != "OK")   ; usuario canceló o cerró el cuadro
+        return
+
+    newMins := Trim(ib.Value)
+
+    ; validación: debe ser un número no negativo (0 = desactivado)
+    if (newMins = "" || !RegExMatch(newMins, "^\d+(\.\d+)?$")) {
+        IdleShowTip("Invalid value. Keeping " idleMinutes " min.")
+        return
+    }
+
+    idleMinutes := newMins + 0
+    idleThresholdMs := idleMinutes * 60 * 1000
+
+    if (idleMinutes <= 0) {
+        SetTimer(IdleCheck, 0)
+        SetTimer(IdleCheck2, 0)
+        IdleShowTip("Idle hide disabled (0 min).")
+    } else {
+        SetTimer(IdleCheck2, 0)
+        SetTimer(IdleCheck, 1000)
+        IdleShowTip("Idle threshold set to " idleMinutes " min.")
+    }
+}
+
+IdleShowTip(text) {
+    ToolTip(text)
+    SetTimer(IdleClearTip, -1200)
+}
+
+IdleClearTip() {
+    ToolTip()
+}
+
+IdleCheck() {
+    global idleThresholdMs
+    if (A_TimeIdlePhysical >= idleThresholdMs) {
+        Send("#d")
+        ToolTip("Escritorio")
+        SetTimer(IdleCheck, 0)
+        Sleep(500)
+        SetTimer(IdleCheck2, 500)
+    }
+}
+
+IdleCheck2() {
+    if (A_TimeIdlePhysical < 500) {
+        Send("#d")
+        ToolTip()
+        SetTimer(IdleCheck2, 0)
+        SetTimer(IdleCheck, 1000)
+    }
+}
+
+; ============================================================================
+; Timer -> Win+Alt+S   (extraído de !_STARTUP_merged.ahk, reescrito a v2)
+;   Win+Alt+U  y luego  I  (< 1 s)  -> abre la GUI del timer
+;   Al cumplirse el tiempo elegido          -> envía Win+Alt+S
+;   Tras X min de inactividad física (GUI)  -> envía Win+Alt+S (0 = off)
+;
+;   Win+Alt+U  y luego  A  (< 2 s)  -> abre la GUI del timer -> Play/Pausa
+;   (esa GUI y su disparo viven en la sección "Timer -> Play/Pausa", más abajo)
+;
+;   Win+Alt+U  y luego  F4 (< 2 s)   -> timer para CERRAR la pestaña activa
+;   Win+Alt+U  y luego  F4 F4        -> timer para CERRAR la ventana activa
+;   (el segundo F4 tiene 450 ms para llegar; las GUIs de alta y la lista de
+;   timers viven en la sección "Ventanas con timer", más abajo)
+; ============================================================================
+; El tiempo se tipea en un solo campo, con el mismo formato que Win+F6 y que el
+; prompt de traymond-timer.ahk (ParseTimedDelaySeconds, más abajo):
+;   25 (minutos) | 90m | 2h | 1h30 | 45s | @17:45 (hora de reloj) | 0 (cancela
+;   el timer pendiente).  La inactividad sigue siendo un campo aparte en minutos.
+global sTimerLastDelay := "30s"   ; último tiempo tipeado en la GUI
+global inactivityMinutes := 10    ; auto-envío por inactividad; 0 = desactivado
+global inactivityFired := false   ; evita reenvíos dentro del mismo período inactivo
+global waitingForSTimerKey := false ; true tras Win+Alt+U, esperando la "I" (< 1 s)
+global waitingForATimerKey := false ; true tras Win+Alt+U, esperando la "A" (< 2 s)
+global waitingForCloseKey := false  ; true tras Win+Alt+U, esperando F4 (< 2 s)
+global gCloseChordFirstF4 := false  ; ya llegó un F4; un segundo lo pasa a ventana
+SetTimer(CheckInactivity, 1000)
+
+#!u::
+{
+    global waitingForSTimerKey, waitingForATimerKey, waitingForCloseKey
+    waitingForSTimerKey := true
+    waitingForATimerKey := true
+    SetTimer(ResetSTimerWait, -1000)   ; la "I" debe llegar en < 1 s
+    SetTimer(ResetATimerWait, -2000)   ; la "A" debe llegar en < 2 s
+    ; El F4 solo se arma si al menos una de las dos acciones de cierre sigue
+    ; prendida en el menú de hotkeys (Ctrl+Alt+H): si están las dos apagadas,
+    ; F4 no se engancha y Win+F4 sigue siendo el ciclador de siempre.
+    if (HKEnabled("timed_close.tab") || HKEnabled("timed_close.win")) {
+        waitingForCloseKey := true
+        SetTimer(ResetCloseWait, -2000)   ; el F4 debe llegar en < 2 s
+    }
+}
+
+; La "I" solo es hotkey durante esa ventana de 1 s (con o sin modificadores).
+#HotIf waitingForSTimerKey
+*i::
+{
+    ClearTimerChordWait()
+    OpenSTimerGui()
+}
+#HotIf
+
+; La "A" solo es hotkey durante su ventana de 2 s (con o sin modificadores:
+; es normal seguir apretando Win+Alt al llegar de Win+Alt+U).
+#HotIf waitingForATimerKey
+*a::
+{
+    ClearTimerChordWait()
+    OpenATimerGui()
+}
+#HotIf
+
+; F4 solo es hotkey durante esa ventana de 2 s (con o sin modificadores: es
+; normal seguir apretando Win+Alt al llegar de Win+Alt+U). La variante #F4 se
+; declara aparte porque Win+F4 ya es el ciclador de ventanas: un #HotIf
+; contextual le gana a la variante global del MISMO hotkey, cosa que el
+; comodín *F4 no garantiza frente a un #F4 exacto.
+#HotIf waitingForCloseKey
+*F4::TimedCloseChordKey()
+#F4::TimedCloseChordKey()
+^#F4::TimedCloseChordKey()   ; mismo motivo que #F4: Ctrl+Win+F4 es el filtro del ciclador
+#HotIf
+
+; Un F4 => pestaña, dos F4 => ventana. Como no se puede saber si viene un
+; segundo golpe hasta que pasa el tiempo, el primer F4 solo arma el margen.
+TimedCloseChordKey() {
+    global gCloseChordFirstF4
+    ClearTimerChordWait(true)          ; la I y la A ya no aplican; el F4 sigue vivo
+    if gCloseChordFirstF4 {
+        ResetCloseWait()
+        if HKEnabled("timed_close.win")
+            NewTimedWindowTimer("close")
+        return
+    }
+    gCloseChordFirstF4 := true
+    SetTimer(ResetCloseWait, 0)              ; ya no vence por falta de F4
+    SetTimer(TimedCloseChordSingle, -450)    ; margen para el segundo F4
+}
+
+; Venció el margen sin un segundo F4 => era un cierre de pestaña.
+TimedCloseChordSingle() {
+    ResetCloseWait()
+    if HKEnabled("timed_close.tab")
+        NewTimedTabTimer("close")
+}
+
+ResetCloseWait() {
+    global waitingForCloseKey, gCloseChordFirstF4
+    waitingForCloseKey := false
+    gCloseChordFirstF4 := false
+    SetTimer(ResetCloseWait, 0)
+    SetTimer(TimedCloseChordSingle, 0)
+}
+
+ResetSTimerWait() {
+    global waitingForSTimerKey
+    waitingForSTimerKey := false
+}
+
+ResetATimerWait() {
+    global waitingForATimerKey
+    waitingForATimerKey := false
+}
+
+; Al aceptar cualquiera de las dos teclas se cierran las dos ventanas, para que
+; la que quede viva no abra además la otra GUI.
+; keepClose deja vivo el acorde del F4: lo usa el propio handler del F4, que
+; necesita descartar la I y la A pero seguir escuchando un segundo F4.
+ClearTimerChordWait(keepClose := false) {
+    global waitingForSTimerKey, waitingForATimerKey
+    waitingForSTimerKey := false
+    waitingForATimerKey := false
+    SetTimer(ResetSTimerWait, 0)
+    SetTimer(ResetATimerWait, 0)
+    if !keepClose
+        ResetCloseWait()
+}
+
+OpenSTimerGui() {
+    global sTimerLastDelay, inactivityMinutes
+    stg := Gui("+AlwaysOnTop +ToolWindow", "Timer -> Win+Alt+S")
+    stg.MarginX := 14
+    stg.MarginY := 12
+    stg.SetFont("s9", "Segoe UI")
+    stg.Add("Text", "xm", "Mandar Win+Alt+S en:")
+    delayEdit := stg.Add("Edit", "xm y+4 w110", sTimerLastDelay)
+    stg.Add("Text", "x+8 yp+4 cGray", "minutos")
+    stg.Add("Text", "xm y+12 w420 cGray"
+        , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
+          . "0 cancela el timer pendiente.")
+    stg.Add("Text", "xm y+12", "Auto-envío por inactividad (minutos, 0 = off):")
+    inacEdit := stg.Add("Edit", "xm y+4 w110 Number Limit4", inactivityMinutes)
+    inacBtn := stg.Add("Button", "x+10 yp-3 w130", "Solo inactividad")
+    startBtn := stg.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
+    cancelBtn := stg.Add("Button", "x+10 w130", "Cancelar")
+    startBtn.OnEvent("Click", (*) => STimerStart(stg, delayEdit, inacEdit))
+    inacBtn.OnEvent("Click", (*) => STimerSetInactivityOnly(stg, inacEdit))
+    cancelBtn.OnEvent("Click", (*) => stg.Destroy())
+    stg.OnEvent("Close", (*) => stg.Destroy())
+    stg.OnEvent("Escape", (*) => stg.Destroy())
+    stg.Show()
+    delayEdit.Focus()
+    SendMessage(0x00B1, 0, -1, delayEdit)    ; EM_SETSEL: deja el valor seleccionado
+}
+
+STimerStart(stg, delayEdit, inacEdit) {
+    global sTimerLastDelay, inactivityMinutes, inactivityFired
+    typed := Trim(delayEdit.Value)
+    totalSec := ParseTimedDelaySeconds(typed)
+    if (totalSec < 0) {
+        stg.Opt("+OwnDialogs")
+        MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
+            , "Timer -> Win+Alt+S", 48
+        return
+    }
+    ; Guardar valores para la próxima apertura y para la inactividad.
+    if (totalSec > 0)                        ; un "0" no se guarda como prefill
+        sTimerLastDelay := typed
+    inactivityMinutes := inacEdit.Value + 0
+    inactivityFired := false                 ; re-armar el chequeo de inactividad
+    stg.Destroy()
+    if (totalSec > 0) {
+        SetTimer(FireSCombo, -totalSec * 1000)   ; one-shot: dispara al cumplirse
+        ToolTip "Timer: " FormatSeconds(totalSec) " -> Win+Alt+S"
+    } else {
+        SetTimer(FireSCombo, 0)                  ; 0 -> cancela lo que hubiera
+        ToolTip "Timer Win+Alt+S cancelado. Inactividad: " inactivityMinutes " min"
+    }
+    SetTimer () => ToolTip(), -1500
+}
+
+STimerSetInactivityOnly(stg, inacEdit) {
+    global inactivityMinutes, inactivityFired
+    inactivityMinutes := inacEdit.Value + 0
+    inactivityFired := false                 ; re-armar el chequeo de inactividad
+    stg.Destroy()
+    ToolTip "Inactividad: " inactivityMinutes " min (sin cambiar el timer manual)"
+    SetTimer () => ToolTip(), -1500
+}
+
+FireSCombo() {
+    SetTimer(FireSCombo, 0)
+    SendInput "#!s"
+}
+
+; Chequeo periódico de inactividad (timer cada 1 s, arrancado al inicio).
+; Usa A_TimeIdlePhysical para ignorar el input simulado por el propio script.
+CheckInactivity() {
+    global inactivityMinutes, inactivityFired
+    if (inactivityMinutes <= 0) {
+        inactivityFired := false
+        return
+    }
+    if (A_TimeIdlePhysical >= inactivityMinutes * 60000) {
+        if (!inactivityFired) {
+            inactivityFired := true
+            SendInput "#!s"
+        }
+    } else {
+        inactivityFired := false             ; hubo actividad: re-armar
+    }
+}
+
+; ============================================================================
+; Timer -> Play/Pausa multimedia
+;   Win+Alt+U  y luego  A  (< 2 s)  -> abre esta GUI (el acorde se arma en la
+;   sección "Timer -> Win+Alt+S", que es la dueña del hotkey Win+Alt+U)
+;   Al cumplirse el tiempo elegido  -> envía Media_Play_Pause
+;   Iniciar con 0                   -> cancela el timer pendiente
+;   Mismo campo único y mismo formato que la GUI de Win+Alt+S y que Win+F6.
+; ============================================================================
+global aTimerLastDelay := "30s"   ; último tiempo tipeado en la GUI
+
+OpenATimerGui() {
+    global aTimerLastDelay
+    atg := Gui("+AlwaysOnTop +ToolWindow", "Timer -> Play/Pausa")
+    atg.MarginX := 14
+    atg.MarginY := 12
+    atg.SetFont("s9", "Segoe UI")
+    atg.Add("Text", "xm", "Mandar Play/Pausa en:")
+    delayEdit := atg.Add("Edit", "xm y+4 w110", aTimerLastDelay)
+    atg.Add("Text", "x+8 yp+4 cGray", "minutos")
+    atg.Add("Text", "xm y+12 w420 cGray"
+        , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
+          . "0 cancela el timer pendiente.")
+    startBtn := atg.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
+    cancelBtn := atg.Add("Button", "x+10 w130", "Cancelar")
+    startBtn.OnEvent("Click", (*) => ATimerStart(atg, delayEdit))
+    cancelBtn.OnEvent("Click", (*) => atg.Destroy())
+    atg.OnEvent("Close", (*) => atg.Destroy())
+    atg.OnEvent("Escape", (*) => atg.Destroy())
+    atg.Show()
+    delayEdit.Focus()
+    SendMessage(0x00B1, 0, -1, delayEdit)    ; EM_SETSEL: deja el valor seleccionado
+}
+
+ATimerStart(atg, delayEdit) {
+    global aTimerLastDelay
+    typed := Trim(delayEdit.Value)
+    totalSec := ParseTimedDelaySeconds(typed)
+    if (totalSec < 0) {
+        atg.Opt("+OwnDialogs")
+        MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
+            , "Timer -> Play/Pausa", 48
+        return
+    }
+    if (totalSec > 0)                        ; un "0" no se guarda como prefill
+        aTimerLastDelay := typed
+    atg.Destroy()
+    if (totalSec > 0) {
+        SetTimer(FirePlayPause, -totalSec * 1000)   ; one-shot: dispara al cumplirse
+        ToolTip "Timer: " FormatSeconds(totalSec) " -> Play/Pausa"
+    } else {
+        SetTimer(FirePlayPause, 0)                  ; 0 -> cancela lo que hubiera
+        ToolTip "Timer Play/Pausa cancelado"
+    }
+    SetTimer () => ToolTip(), -1500
+}
+
+FirePlayPause() {
+    SetTimer(FirePlayPause, 0)
+    ; Se manda la tecla multimedia directamente, igual que hace ^!A. Nadie
+    ; hookea Media_Play_Pause en este script, así que no hace falta SendLevel.
+    Send "{Media_Play_Pause}"
+}
+
+; ============================================================================
+; right_tab.ahk
+; ============================================================================
+RCtrl & Numpad5::
+{
+    Send "{Tab}"
+}
+
+; ============================================================================
+; selectcellcontent.ahk
+; ============================================================================
+!F2::
+{
+    Send "{Backspace}"
+    Send "^z"
+}
+
+; ============================================================================
+; ConvertCase.ahk  (Ctrl+F2  ->  ventana de conversión de mayúsculas/minúsculas)
+; ============================================================================
+;   Toma la selección (o, si no hay nada seleccionado, el texto del
+;   portapapeles) y abre una ventana con los 25 estilos y su preview en vivo:
+;
+;     Texto    minúsculas, MAYÚSCULAS, Tipo Título, Tipo oración, iNVERTIDO,
+;              recortar y colapsar espacios
+;     Código   camelCase, PascalCase, snake_case, SCREAMING_SNAKE_CASE,
+;              Ada_Case, kebab-case, Train-Case, COBOL-CASE, dot.case,
+;              path/case, flatcase, UPPERFLATCASE, separado por espacios
+;     Archivo  url-slug, file_name, FileName, slug con fecha adelante, nombre
+;              sin los caracteres que Windows rechaza, y ASCII sin acentos
+;
+;   "Reemplazar" pega el resultado sobre la selección en la ventana de origen
+;   (Enter, o doble clic en un estilo), "Copiar" lo deja en el portapapeles y
+;   Esc cierra sin tocar nada. Las cajas Origen y Resultado son editables.
+;
+;   El portapapeles se guarda y se restaura alrededor de la copia y del pegado.
+;
+;   Las funciones van prefijadas con Cc porque los nombres naturales (Join,
+;   Flash, ToUpperCase) son demasiado genéricos para un archivo compartido.
+;   El script suelto ConvertCase.ahk es el mismo código sin el prefijo.
+; ============================================================================
+
+global CcGui := ""          ; la ventana, mientras está abierta
+global CcSource := ""       ; Edit de origen
+global CcList := ""         ; ListView de estilos + previews
+global CcResult := ""       ; Edit de resultado
+global CcLblSource := "", CcLblStyle := "", CcLblResult := ""
+global CcButtons := []      ; Reemplazar / Copiar / Cancelar, para el layout
+global CcTargetHwnd := 0    ; ventana de donde vino el texto, para pegar ahí
+global CcHadSelection := false
+
+^F2::CcOpen()
+
+CcOpen() {
+    global CcTargetHwnd, CcHadSelection
+
+    hwnd := WinExist("A")
+    text := CcGetSelectedText()
+
+    ; Sin selección: se cae al texto del portapapeles, así una copia hecha en
+    ; cualquier lado también se puede convertir.
+    if (text = "") {
+        CcHadSelection := false
+        try text := A_Clipboard
+    } else {
+        CcHadSelection := true
+    }
+
+    CcTargetHwnd := hwnd
+    CcShowGui(text)
+}
+
+; Grupo, nombre del estilo, función. El orden acá es el orden de la lista; el
+; grupo solo separa visualmente las tres familias.
+CcStyles() {
+    static styles := [
+        ["Texto",   "minúsculas",              CcToLowerCase],
+        ["Texto",   "MAYÚSCULAS",              CcToUpperCase],
+        ["Texto",   "Tipo Título",             CcToTitleCase],
+        ["Texto",   "Tipo oración",            CcToSentenceCase],
+        ["Texto",   "iNVERTIDO",               CcToInvertedCase],
+        ["Texto",   "Recortar espacios",       CcToTrimmed],
+
+        ["Código",  "camelCase",               CcToCamelCase],
+        ["Código",  "PascalCase",              CcToPascalCase],
+        ["Código",  "snake_case",              CcToSnakeCase],
+        ["Código",  "SCREAMING_SNAKE_CASE",    CcToScreamingSnake],
+        ["Código",  "Ada_Case",                CcToAdaCase],
+        ["Código",  "kebab-case",              CcToKebabCase],
+        ["Código",  "Train-Case (header HTTP)", CcToTrainCase],
+        ["Código",  "COBOL-CASE",              CcToCobolCase],
+        ["Código",  "dot.case",                CcToDotCase],
+        ["Código",  "path/case",               CcToPathCase],
+        ["Código",  "flatcase",                CcToFlatCase],
+        ["Código",  "UPPERFLATCASE",           CcToUpperFlatCase],
+        ["Código",  "separado por espacios",   CcToSpaceCase],
+
+        ["Archivo", "url-slug",                CcToUrlSlug],
+        ["Archivo", "file_name",               CcToFileSnake],
+        ["Archivo", "FileName",                CcToFilePascal],
+        ["Archivo", "yyyy-mm-dd-slug",         CcToDatedSlug],
+        ["Archivo", "nombre válido en Windows", CcToWindowsSafeName],
+        ["Archivo", "ASCII (sin acentos)",     CcStripAccents],
+    ]
+    return styles
+}
+
+CcShowGui(text) {
+    global CcGui, CcSource, CcList, CcResult
+    global CcLblSource, CcLblStyle, CcLblResult, CcButtons
+
+    if CcGui {
+        try CcGui.Destroy()
+        CcGui := ""
+    }
+
+    g := Gui("+AlwaysOnTop +Resize +MinSize560x460", "Convertir mayúsculas")
+    g.SetFont("s10", "Segoe UI")
+    CcGui := g
+
+    CcLblSource := g.AddText("w480", "Origen:")
+    CcSource := g.AddEdit("w480 -Wrap +HScroll", text)
+    CcSource.OnEvent("Change", (*) => CcRefreshPreviews())
+
+    CcLblStyle := g.AddText("w480", "Estilo:")
+    CcList := g.AddListView("w480 -Multi +Grid NoSortHdr", ["", "Estilo", "Preview"])
+    CcList.OnEvent("ItemSelect", (*) => CcShowSelected())
+    CcList.OnEvent("DoubleClick", (*) => CcApplyResult())
+
+    CcLblResult := g.AddText("w480", "Resultado:")
+    CcResult := g.AddEdit("w480 -Wrap +HScroll")
+
+    CcButtons := []
+    CcButtons.Push(g.AddButton("w150 Default", "Reemplazar"))
+    CcButtons.Push(g.AddButton("w150", "Copiar"))
+    CcButtons.Push(g.AddButton("w150", "Cancelar"))
+    CcButtons[1].OnEvent("Click", (*) => CcApplyResult())
+    CcButtons[2].OnEvent("Click", (*) => CcCopyResult())
+    CcButtons[3].OnEvent("Click", (*) => CcCloseGui())
+
+    g.OnEvent("Close", (*) => CcCloseGui())
+    g.OnEvent("Escape", (*) => CcCloseGui())
+    g.OnEvent("Size", (guiObj, minMax, w, h) => minMax != -1 ? CcLayout(w, h) : "")
+
+    CcRefreshPreviews()
+    CcList.Modify(1, "Select Focus")
+    CcShowSelected()
+
+    CcLayout(560, 520)
+    g.Show("w560 h520")
+    CcList.Focus()
+    ; Enter tiene que aplicar también con el caret en una de las cajas de
+    ; texto, que es lo que un botón Default por sí solo no cubre.
+    HotIfWinActive("ahk_id " g.Hwnd)
+    Hotkey "Enter", (*) => CcApplyResult(), "On"
+    Hotkey "NumpadEnter", (*) => CcApplyResult(), "On"
+    HotIfWinActive()
+}
+
+; Un solo lugar para el layout, usado en el armado inicial y en cada resize:
+; las dos cajas de texto y la fila de botones tienen alto fijo, y el ListView
+; se queda con todo el espacio vertical que sobra.
+CcLayout(w, h) {
+    global CcSource, CcList, CcResult, CcLblSource, CcLblStyle, CcLblResult, CcButtons
+
+    static margin := 10, labelH := 20, editH := 58, btnH := 32, gap := 6
+
+    inner := w - margin * 2
+    if (inner < 240)
+        return
+
+    ; Desde arriba: etiqueta + Origen, etiqueta, y después la lista.
+    y := margin
+    CcLblSource.Move(margin, y, inner, labelH)
+    y += labelH
+    CcSource.Move(margin, y, inner, editH)
+    y += editH + gap
+    CcLblStyle.Move(margin, y, inner, labelH)
+    y += labelH
+
+    ; Desde abajo: botones, Resultado y su etiqueta. Lo que queda es la lista.
+    btnY := h - margin - btnH
+    resultY := btnY - margin - editH
+    lblResultY := resultY - labelH
+
+    listH := lblResultY - gap - y
+    if (listH < 80)
+        listH := 80
+
+    CcList.Move(margin, y, inner, listH)
+    CcLblResult.Move(margin, lblResultY, inner, labelH)
+    CcResult.Move(margin, resultY, inner, editH)
+
+    btnW := (inner - margin * 2) // 3
+    x := margin
+    for btn in CcButtons {
+        btn.Move(x, btnY, btnW, btnH)
+        x += btnW + margin
+    }
+
+    CcList.ModifyCol(1, 60)
+    CcList.ModifyCol(2, 176)
+    CcList.ModifyCol(3, inner - 60 - 176 - 24)
+    CcList.Redraw()
+}
+
+; Recalcula todos los previews a partir del texto de Origen.
+CcRefreshPreviews() {
+    global CcSource, CcList
+
+    text := CcSource.Value
+    sel := CcList.GetNext(0, "F")
+
+    CcList.Opt("-Redraw")
+    CcList.Delete()
+    for style in CcStyles()
+        CcList.Add(, style[1], style[2], CcPreviewOf(style[3](text)))
+    if (sel > 0)
+        CcList.Modify(sel, "Select Focus")
+    CcList.Opt("+Redraw")
+
+    CcShowSelected()
+}
+
+; Los saltos de línea y los tabs romperían la fila de una sola línea, así que
+; en el preview se muestran como símbolos.
+CcPreviewOf(s) {
+    s := StrReplace(s, "`r`n", " ⏎ ")
+    s := StrReplace(s, "`n", " ⏎ ")
+    s := StrReplace(s, "`t", " → ")
+    return s
+}
+
+CcShowSelected() {
+    global CcSource, CcList, CcResult
+
+    row := CcList.GetNext(0, "F")
+    if (row < 1)
+        row := CcList.GetNext(0)
+    if (row < 1) {
+        CcResult.Value := ""
+        return
+    }
+    styles := CcStyles()
+    if (row > styles.Length)
+        return
+    CcResult.Value := styles[row][3](CcSource.Value)
+}
+
+CcApplyResult() {
+    global CcResult, CcTargetHwnd, CcHadSelection
+
+    text := CcResult.Value
+    if (text = "") {
+        CcFlash("No hay nada para pegar.")
+        return
+    }
+    if !CcTargetHwnd || !WinExist("ahk_id " CcTargetHwnd) {
+        CcFlash("La ventana de origen ya no existe: se copia en su lugar.")
+        CcCopyResult()
+        return
+    }
+
+    CcCloseGui()
+
+    try WinActivate("ahk_id " CcTargetHwnd)
+    if !WinWaitActive("ahk_id " CcTargetHwnd, , 1) {
+        CcSetClipboard(text)
+        CcFlash("No se pudo activar la ventana: resultado copiado.")
+        return
+    }
+
+    CcPasteText(text)
+    ; Sin selección no había nada que sobreescribir, y eso conviene decirlo:
+    ; el texto entró en la posición del caret.
+    if !CcHadSelection
+        CcFlash("Pegado en el caret (no había nada seleccionado).")
+}
+
+CcCopyResult() {
+    global CcResult
+
+    text := CcResult.Value
+    if (text = "") {
+        CcFlash("No hay nada para copiar.")
+        return
+    }
+    CcSetClipboard(text)
+    CcCloseGui()
+    CcFlash("Copiado.")
+}
+
+CcCloseGui() {
+    global CcGui
+
+    if !CcGui
+        return
+    HotIfWinActive("ahk_id " CcGui.Hwnd)
+    try Hotkey "Enter", "Off"
+    try Hotkey "NumpadEnter", "Off"
+    HotIfWinActive()
+    try CcGui.Destroy()
+    CcGui := ""
+}
+
+; Copia la selección sin dejarla en el portapapeles.
+CcGetSelectedText() {
+    saved := ClipboardAll()
+    A_Clipboard := ""
+    Send "^c"
+    got := ClipWait(0.6, 0)
+    text := got ? A_Clipboard : ""
+    A_Clipboard := saved
+    return text
+}
+
+; Se pega por portapapeles y no con SendText: es instantáneo sin importar el
+; largo, y no se equivoca con acentos ni con teclas muertas.
+CcPasteText(text) {
+    saved := ClipboardAll()
+    A_Clipboard := text
+    if !ClipWait(1, 1) {
+        A_Clipboard := saved
+        CcFlash("El portapapeles está ocupado: no se pegó nada.")
+        return
+    }
+    Send "^v"
+    Sleep 200          ; que el destino lea el portapapeles antes de devolverlo
+    A_Clipboard := saved
+}
+
+CcSetClipboard(text) {
+    A_Clipboard := text
+    ClipWait(1, 1)
+}
+
+CcFlash(msg) {
+    ToolTip msg
+    SetTimer () => ToolTip(), -1600
+}
+
+; ---- Conversiones -----------------------------------------------------------
+;
+; Los estilos por palabras (camel, snake, kebab, …) pasan todos por
+; CcSplitWords, así cualquier forma de entrada convierte a cualquier otra:
+; THIS_IS_AN_EXAMPLE, thisIsAnExample y "this is an example" dan las mismas
+; cuatro palabras.
+
+; Corta por separadores o, cuando el texto no tiene ninguno, por las jorobas
+; del camelCase.
+;
+; Las jorobas se consultan solo para texto sin separadores a propósito. El
+; texto que ya trae separadores ya dijo dónde terminan sus palabras, y
+; respetarlo es lo que deja intacta una entrada tipeada de forma errática:
+; tHIS_Is_an_ExAmPLE da cuatro palabras, no las ocho que sugieren las jorobas.
+CcSplitWords(s) {
+    if !RegExMatch(s, "[^\p{L}\p{N}]") {
+        ; aB y 1B -> a B / 1 B     (minúscula o dígito seguidos de mayúscula)
+        s := RegExReplace(s, "(\p{Ll}|\p{N})(\p{Lu})", "$1 $2")
+        ; HTMLParser -> HTML Parser  (tira de mayúsculas + mayúscula-minúscula)
+        s := RegExReplace(s, "(\p{Lu})(\p{Lu}\p{Ll})", "$1 $2")
+    }
+    s := RegExReplace(s, "[^\p{L}\p{N}]+", " ")
+
+    words := []
+    for w in StrSplit(Trim(s), " ")
+        if (w != "")
+            words.Push(w)
+    return words
+}
+
+CcJoin(words, sep, mode) {
+    out := ""
+    for i, w in words {
+        switch mode {
+            case "lower": w := StrLower(w)
+            case "upper": w := StrUpper(w)
+            case "cap":   w := StrUpper(SubStr(w, 1, 1)) StrLower(SubStr(w, 2))
+        }
+        out .= (i > 1 ? sep : "") w
+    }
+    return out
+}
+
+CcToLowerCase(s) => StrLower(s)
+CcToUpperCase(s) => StrUpper(s)
+
+CcToTitleCase(s) {
+    out := ""
+    prevAlnum := false
+    loop parse s {
+        ch := A_LoopField
+        isAlnum := RegExMatch(ch, "[\p{L}\p{N}]") > 0
+        out .= (isAlnum && !prevAlnum) ? StrUpper(ch) : StrLower(ch)
+        prevAlnum := isAlnum
+    }
+    return out
+}
+
+; Primera letra de cada oración, el resto en minúscula. Una oración empieza al
+; principio del texto y después de . ! ? o de un salto de línea.
+CcToSentenceCase(s) {
+    s := StrLower(s)
+    out := ""
+    atStart := true
+    loop parse s {
+        ch := A_LoopField
+        if (atStart && RegExMatch(ch, "[\p{L}\p{N}]")) {
+            out .= StrUpper(ch)
+            atStart := false
+            continue
+        }
+        out .= ch
+        if InStr(".!?`n", ch)
+            atStart := true
+    }
+    return out
+}
+
+CcToInvertedCase(s) {
+    out := ""
+    loop parse s {
+        ch := A_LoopField
+        up := StrUpper(ch)
+        out .= (ch == up) ? StrLower(ch) : up
+    }
+    return out
+}
+
+CcToCamelCase(s) {
+    words := CcSplitWords(s)
+    if !words.Length
+        return ""
+    out := StrLower(words[1])
+    loop words.Length - 1
+        out .= StrUpper(SubStr(words[A_Index + 1], 1, 1)) StrLower(SubStr(words[A_Index + 1], 2))
+    return out
+}
+
+CcToPascalCase(s) => CcJoin(CcSplitWords(s), "", "cap")
+CcToSnakeCase(s) => CcJoin(CcSplitWords(s), "_", "lower")
+CcToScreamingSnake(s) => CcJoin(CcSplitWords(s), "_", "upper")
+CcToAdaCase(s) => CcJoin(CcSplitWords(s), "_", "cap")
+CcToKebabCase(s) => CcJoin(CcSplitWords(s), "-", "lower")
+CcToTrainCase(s) => CcJoin(CcSplitWords(s), "-", "cap")
+CcToCobolCase(s) => CcJoin(CcSplitWords(s), "-", "upper")
+CcToDotCase(s) => CcJoin(CcSplitWords(s), ".", "lower")
+CcToPathCase(s) => CcJoin(CcSplitWords(s), "/", "lower")
+CcToFlatCase(s) => CcJoin(CcSplitWords(s), "", "lower")
+CcToUpperFlatCase(s) => CcJoin(CcSplitWords(s), "", "upper")
+CcToSpaceCase(s) => CcJoin(CcSplitWords(s), " ", "lower")
+
+; No toca las mayúsculas: saca los blancos de los extremos y aplasta las
+; corridas de espacios y tabs, que es lo que suele necesitar el texto pegado.
+CcToTrimmed(s) => Trim(RegExReplace(s, "[ \t]+", " "))
+
+; ---- Nombres de archivo y de URL --------------------------------------------
+;
+; Estos pasan primero por CcStripAccents: un nombre que tiene que sobrevivir a
+; una URL, una rama de git, una clave de S3 o el filesystem de otra persona
+; está más seguro en ASCII pelado.
+
+CcToUrlSlug(s) => CcJoin(CcSplitWords(CcStripAccents(s)), "-", "lower")
+CcToFileSnake(s) => CcJoin(CcSplitWords(CcStripAccents(s)), "_", "lower")
+CcToFilePascal(s) => CcJoin(CcSplitWords(CcStripAccents(s)), "", "cap")
+
+; La fecha de hoy adelante del slug, para el estilo de nombre de nota fechada.
+CcToDatedSlug(s) {
+    slug := CcToUrlSlug(s)
+    return FormatTime(A_Now, "yyyy-MM-dd") (slug = "" ? "" : "-" slug)
+}
+
+; La opción menos destructiva: deja las palabras, los espacios y las
+; mayúsculas como se tipearon, y solo saca lo que Windows no acepta en un
+; nombre — \ / : * ? " < > | — más los puntos y espacios finales que el
+; Explorador se come en silencio.
+CcToWindowsSafeName(s) {
+    s := StrReplace(s, "`r`n", " ")
+    s := StrReplace(s, "`n", " ")
+    s := StrReplace(s, "`t", " ")
+    s := RegExReplace(s, '[\\/:*?"<>|]', "-")
+    s := RegExReplace(s, "[ \t]+", " ")
+    s := RegExReplace(s, "-{2,}", "-")
+    ; Un guion en el lugar de un carácter que se sacó es solo ruido, en
+    ; cualquiera de los dos extremos.
+    return RegExReplace(RegExReplace(Trim(s), "^-+"), "[-. ]+$")
+}
+
+; Baja las letras latinas acentuadas a su base ASCII y deja todo lo demás
+; (mayúsculas, separadores, puntuación) como está.
+CcStripAccents(s) {
+    static from := "áàäâãåéèëêíìïîóòöôõøúùüûýÿñçšžÁÀÄÂÃÅÉÈËÊÍÌÏÎÓÒÖÔÕØÚÙÜÛÝÑÇŠŽ"
+    static to   := "aaaaaaeeeeiiiioooooouuuuyyncszAAAAAAEEEEIIIIOOOOOOUUUUYNCSZ"
+    static pairs := Map("ß", "ss", "æ", "ae", "œ", "oe", "Æ", "AE", "Œ", "OE", "Ð", "D", "ð", "d", "þ", "th", "Þ", "Th")
+
+    for bad, good in pairs
+        s := StrReplace(s, bad, good)
+
+    out := ""
+    loop parse s {
+        pos := InStr(from, A_LoopField, true)
+        out .= pos ? SubStr(to, pos, 1) : A_LoopField
+    }
+    return out
+}
+
+; ============================================================================
+; volume.ahk
+; ============================================================================
+#WheelUp::Send "{Volume_Up}"
+#WheelDown::Send "{Volume_Down}"
+
+; ============================================================================
+; macro_insta_name.ahk
+; ============================================================================
+^!x::  ; Ctrl+Alt+X
+{
+    SendInput "{Esc}"
+    Sleep 50
+    SendInput "!+{End}"
+    Sleep 1200
+    SendInput "^a"
+    Sleep 200
+    SendInput "^v"
+    Sleep 80
+    SendInput "{Tab}"
+    Sleep 70
+    SendInput "{Enter}"
+    Sleep 550
+    SendInput "+a"
+}
+
+^!+x::  ; Ctrl+Alt+Shift+X
+{
+    SendInput "!+{h}"
+    Sleep 1000
+    SendInput "{Down}"
+    Sleep 100
+    SendInput "{Enter}"
+    Sleep 10
+}
+
+; ============================================================================
+; find_wise_reminder.ahk
+; ============================================================================
+#z::FindWiseReminder()
+#|::FindWiseReminder()     ; atajo de la laptop personal (ex !_STARTUP.ahk)
+
+FindWiseReminder() {
+    global clickX, clickY
+    if ProcessExist("WiseReminder.exe") {
+        WinState := ""
+        try WinState := WinGetMinMax("ahk_exe WiseReminder.exe")
+        if (WinState = "") {
+            SendInput "#b"
+            SendInput "{Enter}"
+            Sleep 50
+            SendInput "{Up}"
+            SendInput "w"
+            Sleep 40
+            SendInput "w"
+            Sleep 40
+            SendInput "{Enter}"
+            Sleep 100
+            Click clickX, clickY
+        } else
+            WinActivate "ahk_exe WiseReminder.exe"
+    } else
+        Run '"C:\Program Files (x86)\Wise\Wise Reminder\WiseReminder.exe"'
+}
+
+; ============================================================================
+; open_hourglass.ahk
+; ============================================================================
+#^+z::OpenHourglass()
+#+|::OpenHourglass()       ; atajo de la laptop personal (ex !_STARTUP.ahk)
+
+OpenHourglass() {
+    if ProcessExist("Hourglass.exe")
+        WinActivate "ahk_exe Hourglass.exe"
+    else
+        Run '"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Hourglass\Hourglass.lnk"'
+}
+
+; ============================================================================
+; open-program-GUI.ahk
+;   Requiere open-program-GUI.ini (guarda overrides de rutas por programa).
+; ============================================================================
+OpenProgramIniFile := A_ScriptDir "\open-program-GUI.ini"
+
+OpenProgramOrder := ["OBS", "Paint", "Notepad++", "SpeedCrunch", "PointToFix"]
+
+OpenProgramPrograms := Map(
+    "OBS", "C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+    "Paint", "C:\Windows\System32\mspaint.exe",
+    "Notepad++", "C:\Program Files\Notepad++\notepad++.exe",
+    "SpeedCrunch", "C:\Program Files (x86)\SpeedCrunch\speedcrunch.exe",
+    "PointToFix", "C:\Program Files (x86)\Pointofix\Pointofix.exe"
+)
+
+for name, defaultPath in OpenProgramPrograms
+    OpenProgramPrograms[name] := IniRead(OpenProgramIniFile, "Paths", name, defaultPath)
+
+^#p::ShowOpenProgramGui()
+
+ShowOpenProgramGui() {
+    global OpenProgramPrograms
+    if WinExist("Open Program ahk_class AutoHotkey") {
+        WinActivate
+        return
+    }
+
+    MyOpenProgramGui := Gui(, "Open Program")
+    MyOpenProgramGui.OnEvent("Close", (*) => MyOpenProgramGui.Destroy())
+    MyOpenProgramGui.SetFont("s10")
+
+    for name in OpenProgramOrder {
+        path := OpenProgramPrograms[name]
+        MyOpenProgramGui.Add("Button", "x10 y+10 w150", name).OnEvent("Click", MakeOpenProgramLaunchHandler(name, MyOpenProgramGui))
+        MyOpenProgramGui.Add("Button", "x+5 yp w80", "Edit path").OnEvent("Click", MakeOpenProgramEditHandler(name))
+    }
+
+    MyOpenProgramGui.Add("Button", "x10 y+15 w235", "Close").OnEvent("Click", (*) => MyOpenProgramGui.Destroy())
+
+    MyOpenProgramGui.Show()
+}
+
+MakeOpenProgramLaunchHandler(name, gui) {
+    return (*) => LaunchOpenProgram(name, gui)
+}
+
+MakeOpenProgramEditHandler(name) {
+    return (*) => EditOpenProgramPath(name)
+}
+
+LaunchOpenProgram(name, gui) {
+    global OpenProgramPrograms
+    path := OpenProgramPrograms[name]
+    if !FileExist(path) {
+        MsgBox("Unable to find " name " at:`n" path)
+        return
+    }
+    ; Lanzar con el directorio del .exe como working dir: algunos programas
+    ; (OBS) buscan sus datos -locale, plugins- relativos al directorio actual.
+    SplitPath(path, , &exeDir)
+    try
+        Run(path, exeDir)
+    catch as err {
+        MsgBox("Failed to launch " name ":`n" err.Message)
+        return
+    }
+    gui.Destroy()
+}
+
+EditOpenProgramPath(name) {
+    global OpenProgramPrograms, OpenProgramIniFile
+    result := InputBox("Path for " name ":", "Edit path", "w400 h130", OpenProgramPrograms[name])
+    if (result.Result = "OK" && result.Value != "") {
+        OpenProgramPrograms[name] := result.Value
+        IniWrite(result.Value, OpenProgramIniFile, "Paths", name)
+    }
+}
+
+; ============================================================================
+; find_google_calendar.ahk
+;   Requiere find_google_calendar.ini (define el navegador: Chrome o Firefox)
+;   y UIA.ahk (incluido arriba) para inspeccionar pestañas vía UI Automation.
+; ============================================================================
+GoogleCalendarIniFile := A_ScriptDir "\find_google_calendar.ini"
+GoogleCalendarBrowserExe := Map("Chrome", "chrome.exe", "Firefox", "firefox.exe")
+    .Get(IniRead(GoogleCalendarIniFile, "Settings", "Browser", "Firefox"), "firefox.exe")
+
++NumpadEnter::
+{
+    global GoogleCalendarBrowserExe
+    for hwnd in WinGetList("ahk_exe " GoogleCalendarBrowserExe) {
+        root := UIA.ElementFromHandle(hwnd)
+        for tab in root.FindElements({Type: "TabItem"}) {
+            if InStr(tab.Name, "Calendario") || InStr(tab.Name, "Google Calendar") {
+                tab.Select()
+                MsgBox(tab.Name)
+                WinActivate("ahk_id " hwnd)
+                return
+            }
+        }
+    }
+}
+
+; ============================================================================
+; kill_all.ahk
+; ============================================================================
+^+!k::  ; Ctrl + Shift + Alt + K
+{
+    for this_id in WinGetList() {
+        try {
+            title := WinGetTitle("ahk_id " this_id)
+            class := WinGetClass("ahk_id " this_id)
+            exe := WinGetProcessName("ahk_id " this_id)
+            style := WinGetStyle("ahk_id " this_id)
+        } catch {
+            continue
+        }
+        if (class = "Progman" || class = "WorkerW")
+            continue
+        if (exe = "chrome.exe" || exe = "msedge.exe" || exe = "firefox.exe")
+            continue
+        if (title = "")
+            continue
+        if (style & 0x10000000) {
+            WinClose "ahk_id " this_id
+            Sleep 100
+        }
+    }
+}
+
+; ============================================================================
+; Show_Time.ahk
+; ============================================================================
+#c::  ; Win + C
+{
+    Send "#{b}"
+    Sleep 100
+    Send "{Right 7}"   ; 7 en la barra de tareas de la laptop personal (5 en work)
+    Sleep 50
+    Send "{Enter}"
+}
+
+; ============================================================================
+; Cycler_Windows_v3.ahk  (+ pestañas del navegador)
+;   Win+F5             = Agrega la ventana activa a la lista
+;   Ctrl+Win+F5        = Agrega la PESTAÑA activa del navegador a la misma lista
+;   Win+F4             = Cicla a la siguiente entrada y la activa
+;   Ctrl+Win+F4        = Alterna qué recorre Win+F4: todo / pestañas / ventanas
+;   Win+Shift+F5       = Quita la ventana activa de la lista
+;   Ctrl+Shift+Win+F5  = Quita la pestaña activa de la lista
+;   Win+Shift+F4       = Lista flotante (se cierra al soltar Win)
+;
+;   La lista es UNA sola: ventanas y pestañas se ciclan juntas, en el orden en
+;   que se fueron agregando. El filtro de Ctrl+Win+F4 no toca la lista, solo
+;   decide qué entradas saltea Win+F4.
+;
+;   Una pestaña no tiene handle estable, así que se guarda por título
+;   normalizado y se la vuelve a ubicar con las mismas funciones que usan los
+;   timers de pestaña (Ctrl+Win+F6): FindTimedTabTarget() / ActivateTimedTab().
+;   Por eso una pestaña guardada sobrevive a que cambie de posición, a que le
+;   cambie el contador de no leídos del título, e incluso a que la arrastren a
+;   otra ventana del navegador.
+; ============================================================================
+#F5::AddActiveWindow()
+#F4::CycleWindows()
+#+F5::RemoveActiveWindow()
+#+F4::ShowWindowListGuiIfNeeded()
+^#F5::AddActiveTab()
+^+#F5::RemoveActiveTab()
+^#F4::CycleCyclerFilter()
+
+CyclerFilterLabel() {
+    global gCyclerFilter
+    if (gCyclerFilter = "tab")
+        return "tabs only"
+    if (gCyclerFilter = "win")
+        return "windows only"
+    return "all"
+}
+
+; todo -> solo pestañas -> solo ventanas -> todo
+CycleCyclerFilter() {
+    global gCyclerFilter
+    if (gCyclerFilter = "all")
+        gCyclerFilter := "tab"
+    else if (gCyclerFilter = "tab")
+        gCyclerFilter := "win"
+    else
+        gCyclerFilter := "all"
+    TrayTip "Cycler filter", "Win+F4 now cycles: " CyclerFilterLabel(), 2
+    RefreshWindowListGui()      ; si la lista flotante está abierta, la redibuja
+}
+
+AddActiveWindow() {
+    global gCyclerItems
+    hwnd := WinGetID("A")
+    if !hwnd
+        return
+    for it in gCyclerItems {
+        if (it["kind"] = "win" && it["hwnd"] = hwnd) {
+            TrayTip "Window Already Saved", "This window is already stored.", 2
+            return
+        }
+    }
+    gCyclerItems.Push(Map("kind", "win", "hwnd", hwnd))
+    title := WinGetTitle("ahk_id " hwnd)
+    TrayTip "Window Saved", "Added (" gCyclerItems.Length "):`n" title, 2
+}
+
+; Datos de la pestaña activa: [hwnd, exe, nombre] o "" si la ventana activa no
+; es un navegador o UIA no pudo leerla (en ambos casos ya avisó por TrayTip).
+; Mismos chequeos que NewTimedTabTimer(); 'what' describe qué iba a hacerse.
+GetCyclerActiveTab(what) {
+    global gTimedBrowserExes
+    hwnd := WinGetID("A")
+    if !hwnd
+        return ""
+    exe := ""
+    try exe := WinGetProcessName("ahk_id " hwnd)
+    isBrowser := false
+    for candidate in gTimedBrowserExes {
+        if (candidate = exe) {
+            isBrowser := true
+            break
+        }
+    }
+    if !isBrowser {
+        TrayTip "Not a Browser"
+            , what " the active tab of Chrome, Firefox or Edge.`nCurrent window: " exe, 2
+        return ""
+    }
+    tabName := GetActiveBrowserTabName(hwnd)
+    if (tabName = "") {
+        TrayTip "Tab Not Detected"
+            , "Couldn't read the active tab of " exe ".`n(Firefox needs accessibility enabled.)", 2
+        return ""
+    }
+    return [hwnd, exe, tabName]
+}
+
+AddActiveTab() {
+    global gCyclerItems
+    if !(t := GetCyclerActiveTab("Ctrl+Win+F5 saves"))
+        return
+    for it in gCyclerItems {
+        if (it["kind"] = "tab" && it["tab"] = t[3]) {
+            TrayTip "Tab Already Saved", "This tab is already stored.", 2
+            return
+        }
+    }
+    gCyclerItems.Push(Map("kind", "tab", "hwnd", t[1], "exe", t[2], "tab", t[3]))
+    TrayTip "Tab Saved", "Added (" gCyclerItems.Length "):`n" t[3], 2
+}
+
+CycleWindows() {
+    global gCyclerItems, gIndex, gCyclerFilter
+    if (gCyclerItems.Length = 0) {
+        MsgBox "No windows or tabs have been stored yet.", "Nothing Stored", 48
+        gIndex := 0
+        return
+    }
+    CleanClosedWindows()
+    if (gCyclerItems.Length = 0) {
+        MsgBox "All stored windows were closed.`nList cleared.", "All Windows Closed", 48
+        gIndex := 0
+        return
+    }
+    matches := []                       ; índices que el filtro actual deja pasar
+    for i, it in gCyclerItems {
+        if (gCyclerFilter = "all" || it["kind"] = gCyclerFilter)
+            matches.Push(i)
+    }
+    ; Hay entradas, pero ninguna pasa el filtro. Aviso liviano, no un MsgBox
+    ; modal: es una elección del usuario y se deshace con Ctrl+Win+F4.
+    if (matches.Length = 0) {
+        TrayTip "Nothing to Cycle"
+            , "Filter is '" CyclerFilterLabel() "' and nothing in the list matches it.", 2
+        return
+    }
+    next := 0
+    for idx in matches {
+        if (idx > gIndex) {
+            next := idx
+            break
+        }
+    }
+    gIndex := next ? next : matches[1]      ; sin posterior => vuelve al primero
+    item := gCyclerItems[gIndex]
+    if (item["kind"] = "win") {
+        if !WinExist("ahk_id " item["hwnd"]) {
+            gCyclerItems.RemoveAt(gIndex)
+            gIndex--
+            CycleWindows()
+            return
+        }
+        WinActivate "ahk_id " item["hwnd"]
+        return
+    }
+    ; Pestaña: se la busca recién ahora, y solo la de esta entrada -- un escaneo
+    ; UIA por pulsación, no uno por entrada guardada. Si ya no está, se descarta
+    ; y se sigue de largo, igual que con una ventana cerrada.
+    if !(target := FindTimedTabTarget(item)) {
+        gCyclerItems.RemoveAt(gIndex)
+        gIndex--
+        CycleWindows()
+        return
+    }
+    item["hwnd"] := target[1]     ; pudo haber cambiado de ventana: recordá la nueva
+    ActivateTimedTab(target[1], target[2])
+}
+
+RemoveActiveWindow() {
+    global gCyclerItems, gIndex
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
+        gIndex := 0
+        return
+    }
+    CleanClosedWindows()
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
+        gIndex := 0
+        return
+    }
+    hwnd := WinGetID("A")
+    if !hwnd
+        return
+    removed := false
+    for i, it in gCyclerItems {
+        if (it["kind"] = "win" && it["hwnd"] = hwnd) {
+            gCyclerItems.RemoveAt(i)
+            removed := true
+            if (gIndex >= i)
+                gIndex--
+            break
+        }
+    }
+    if removed {
+        title := WinGetTitle("ahk_id " hwnd)
+        TrayTip "Removed", "Removed:`n" title, 2
+    } else {
+        TrayTip "Not Found", "Active window wasn't in the list.", 2
+    }
+    if (gCyclerItems.Length = 0)
+        gIndex := 0
+}
+
+RemoveActiveTab() {
+    global gCyclerItems, gIndex
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
+        gIndex := 0
+        return
+    }
+    if !(t := GetCyclerActiveTab("Ctrl+Shift+Win+F5 removes"))
+        return
+    removed := false
+    for i, it in gCyclerItems {
+        if (it["kind"] = "tab" && it["tab"] = t[3]) {
+            gCyclerItems.RemoveAt(i)
+            removed := true
+            if (gIndex >= i)
+                gIndex--
+            break
+        }
+    }
+    if removed
+        TrayTip "Removed", "Removed:`n" t[3], 2
+    else
+        TrayTip "Not Found", "Active tab wasn't in the list.", 2
+    if (gCyclerItems.Length = 0)
+        gIndex := 0
+}
+
+ShowWindowListGuiIfNeeded() {
+    global gListGuiVisible, gCyclerItems, gIndex
+    if gListGuiVisible
+        return
+    CleanClosedWindows()
+    if (gCyclerItems.Length = 0) {
+        MsgBox "Nothing is stored.", "Nothing Stored", 48
+        gIndex := 0
+        return
+    }
+    ShowWindowListGui()
+}
+
+; Solo poda entradas de VENTANA. El hwnd de una pestaña puede quedar viejo sin
+; que la pestaña haya muerto (basta arrastrarla a otra ventana), y volver a
+; ubicarla es justamente lo que hace FindTimedTabTarget(); podarlas acá por
+; hwnd borraría pestañas vivas. Las pestañas se descartan recién cuando el
+; ciclador salta a una y no la encuentra, así que tampoco hay escaneo UIA acá.
+CleanClosedWindows() {
+    global gCyclerItems, gIndex
+    count := gCyclerItems.Length
+    Loop count {
+        i := count - A_Index + 1
+        it := gCyclerItems[i]
+        if (it["kind"] = "win" && !WinExist("ahk_id " it["hwnd"])) {
+            gCyclerItems.RemoveAt(i)
+            if (gIndex >= i)
+                gIndex--
+        }
+    }
+    if (gIndex < 0)
+        gIndex := 0
+}
+
+ShowWindowListGui() {
+    global gCyclerItems, gIndex, gListGuiVisible, cyclerListGui, gCyclerFilter
+    gListGuiVisible := true
+    cyclerListGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Border")
+    cyclerListGui.MarginX := 10
+    cyclerListGui.MarginY := 10
+    cyclerListGui.SetFont("s9", "Segoe UI")
+    cyclerListGui.Add("Text", , "Saved windows & tabs  --  Win+F4 cycles: " CyclerFilterLabel()
+        . "   (Ctrl+Win+F4 changes that)")
+    lv := cyclerListGui.Add("ListView", "w640 r10 Grid -Multi", ["#", "Current", "Type", "Title", "HWND"])
+    lv.ModifyCol(1, 40)
+    lv.ModifyCol(2, 55)
+    lv.ModifyCol(3, 100)
+    lv.ModifyCol(4, 330)
+    lv.ModifyCol(5, 80)
+    for i, it in gCyclerItems {
+        isTab := (it["kind"] = "tab")
+        title := isTab ? it["tab"] : WinGetTitle("ahk_id " it["hwnd"])
+        cur := (i = gIndex ? "◀" : "")
+        ; Las filas que el filtro actual deja afuera se marcan, para que se vea
+        ; por qué Win+F4 las saltea.
+        skipped := (gCyclerFilter != "all" && it["kind"] != gCyclerFilter)
+        kind := (isTab ? "Tab" : "Window") (skipped ? "  · skip" : "")
+        lv.Add("", i, cur, kind, title, it["hwnd"])
+    }
+    cyclerListGui.Show("x100 y100 NoActivate")
+    SetTimer(CheckWinReleased, 50)
+}
+
+; La GUI se arma de cero cada vez (el ListView vive en una local), así que
+; refrescarla es destruirla y volver a mostrarla.
+RefreshWindowListGui() {
+    global gListGuiVisible, cyclerListGui
+    if !gListGuiVisible
+        return
+    try cyclerListGui.Destroy()
+    gListGuiVisible := false
+    ShowWindowListGui()
+}
+
+CheckWinReleased() {
+    global gListGuiVisible, cyclerListGui
+    if (!GetKeyState("LWin", "P") && !GetKeyState("RWin", "P")) {
+        SetTimer(CheckWinReleased, 0)
+        cyclerListGui.Destroy()
+        gListGuiVisible := false
+    }
+}
+
+; ============================================================================
+; Ventanas con timer  (lista aparte de la del ciclador Win+F4/F5)
+;   Win+F6        = guarda la ventana activa y abre una GUI para elegir en
+;                   cuánto tiempo reaparece (+ check "Always on top").
+;   Ctrl+Win+F6   = lo mismo pero con la PESTAÑA activa del navegador (Chrome,
+;                   Firefox o Edge): guarda esa pestaña puntual y al vencer el
+;                   timer la vuelve a seleccionar, no solo la ventana.
+;   Win+Alt+U, F4 = timer para CERRAR la pestaña activa del navegador.
+;   Win+Alt+U, F4 F4 = timer para CERRAR la ventana activa (dos F4 seguidos;
+;                   el acorde Win+Alt+U vive en la sección "Timer -> Win+Alt+S").
+;   Win+Shift+F6  = GUI de administración: ver los timers corriendo (los de
+;                   abrir y los de cerrar, ventanas y pestañas), sumar o restar
+;                   tiempo, ejecutarlos ya o eliminarlos.
+;   El tiempo se tipea en un solo campo, con formato:
+;   25 (minutos) | 90m | 2h | 1h30 | 45s | @17:45 (hora de
+;   reloj, mañana si ya pasó) | 0 (la abre -- o la cierra -- ahora mismo).
+;   Al cumplirse el tiempo la ventana se restaura (si estaba minimizada) y se
+;   activa -- o se cierra, si el timer es de cierre; en ambos casos el timer se
+;   consume (no se repite). Cerrar una ventana es un WinClose (WM_CLOSE), así
+;   que la aplicación sigue pudiendo preguntar si guardar.
+;   Las pestañas se ubican por título vía UI Automation (UIA.ahk), igual que
+;   Shift+NumpadEnter (find_google_calendar), así que sobreviven a que la
+;   pestaña cambie de posición o incluso de ventana.
+; ============================================================================
+; items ventana:  Map("id","kind","action","hwnd","title","due","aot")
+; items pestaña:  Map("id","kind","action","hwnd","exe","tab","title","due","aot")
+;   kind   = "win" | "tab"        (sobre qué actúa)
+;   action = "open" | "close"     (qué le hace al vencer)
+global gTimedWindows := []
+global gTimedNextId  := 1
+global gTimedGui     := ""        ; GUI de administración (Win+Shift+F6)
+global gTimedGuiLV   := ""
+global gTimedGuiHdr  := ""
+global gTimedGuiIds  := []        ; id del timer que corresponde a cada fila
+global gTimedLastDelay := "5m"    ; último tiempo tipeado en la GUI de alta
+global gTimedBrowserExes := ["chrome.exe", "firefox.exe", "msedge.exe"]
+SetTimer(CheckTimedWindows, 500)
+
+#F6::NewTimedWindowTimer()
+^#F6::NewTimedTabTimer()
+#+F6::ShowTimedWindowsGui()
+
+; action = "open" (Win+F6) | "close" (Win+Alt+U, F4 F4)
+NewTimedWindowTimer(action := "open") {
+    hwnd := WinGetID("A")
+    if !hwnd {
+        TrayTip "Sin ventana activa", "No hay ninguna ventana activa.", 2
+        return
+    }
+    OpenTimedWindowGui(hwnd, , , action)
+}
+
+; ---- Alta de un timer para la pestaña activa del navegador ----
+;      action = "open" (Ctrl+Win+F6) | "close" (Win+Alt+U, F4)
+NewTimedTabTimer(action := "open") {
+    global gTimedBrowserExes
+    hwnd := WinGetID("A")
+    if !hwnd {
+        TrayTip "Sin ventana activa", "No hay ninguna ventana activa.", 2
+        return
+    }
+    exe := ""
+    try exe := WinGetProcessName("ahk_id " hwnd)
+    isBrowser := false
+    for candidate in gTimedBrowserExes {
+        if (candidate = exe) {
+            isBrowser := true
+            break
+        }
+    }
+    if !isBrowser {
+        TrayTip "No es un navegador"
+            , (action = "close" ? "Win+Alt+U y F4 cierra" : "Ctrl+Win+F6 guarda")
+              . " la pestaña activa de Chrome, Firefox o Edge.`nVentana actual: " exe, 2
+        return
+    }
+    tabName := GetActiveBrowserTabName(hwnd)
+    if (tabName = "") {
+        TrayTip "Pestaña no detectada"
+            , "No pude leer la pestaña activa de " exe ".`n(En Firefox hace falta tener la accesibilidad activada.)", 2
+        return
+    }
+    OpenTimedWindowGui(hwnd, tabName, exe, action)
+}
+
+; Nombre de la pestaña seleccionada en una ventana de navegador, vía UIA.
+GetActiveBrowserTabName(hwnd) {
+    try {
+        root := UIA.ElementFromHandle(hwnd)
+        for tab in root.FindElements({Type: "TabItem"}) {
+            try {
+                if (tab.SelectionItemIsSelected && tab.Name != "")
+                    return NormalizeTabName(tab.Name)
+            }
+        }
+    }
+    return ""
+}
+
+; Chrome le cuelga al nombre de la pestaña cosas que cambian solas
+; ("- Memory usage - 466 MB", "- Pinned", "- Audio playing") y varias webs le
+; meten el contador de no leídos adelante ("(185) Recibidos..."). Sin limpiar
+; eso, el nombre guardado no vuelve a coincidir nunca.
+NormalizeTabName(name) {
+    s := Trim(name)
+    loop 5 {
+        prev := s
+        s := RegExReplace(s, "i)\s+[-–—]\s+(Memory usage|Uso de memoria)\s+[-–—]\s+[\d.,]+\s*[KMGT]?B$")
+        s := RegExReplace(s, "i)\s+[-–—]\s+(Pinned|Fijada|Anclada|Audio playing|Reproduciendo audio|Muted|Silenciada|Recording|Grabando|Sharing|Compartiendo)$")
+        s := Trim(s)
+        if (s = prev)
+            break
+    }
+    return Trim(RegExReplace(s, "^\(\d+\)\s*"))
+}
+
+; tabName/exe vacíos => timer de ventana; con valor => timer de pestaña.
+; action = "open" (reaparece al vencer) | "close" (se cierra al vencer).
+OpenTimedWindowGui(hwnd, tabName := "", exe := "", action := "open") {
+    global gTimedLastDelay
+    isTab := (tabName != "")
+    isClose := (action = "close")
+    title := ""
+    if isTab
+        title := tabName
+    else
+        try title := WinGetTitle("ahk_id " hwnd)
+    ; Prefijo + título en un solo renglón: se recorta el título para que el
+    ; conjunto entre en el ancho de la ventana (w380) sin envolverse.
+    prefix := isTab
+        ? (isClose ? "Pestaña a cerrar (" exe "):  " : "Pestaña guardada (" exe "):  ")
+        : (isClose ? "Ventana a cerrar:  " : "Ventana guardada:  ")
+    limit := 58 - StrLen(prefix)
+    if (limit < 20)
+        limit := 20
+    shown := (title = "") ? "(sin título)"
+        : (StrLen(title) > limit ? SubStr(title, 1, limit - 3) "..." : title)
+
+    tw := Gui("+AlwaysOnTop +ToolWindow"
+        , isClose ? (isTab ? "Cerrar pestaña con timer" : "Cerrar ventana con timer")
+                  : (isTab ? "Guardar pestaña con timer" : "Guardar ventana con timer"))
+    tw.MarginX := 14
+    tw.MarginY := 12
+    tw.SetFont("s9", "Segoe UI")
+    tw.Add("Text", "xm w380", prefix shown)
+    ; Aviso (no bloqueante) si esto mismo ya tenía un timer pendiente.
+    existing := isTab ? FindTimedTabByName(tabName, action) : FindTimedWindowByHwnd(hwnd, action)
+    if existing
+        tw.Add("Text", "xm+5 y+8 w380 cRed"
+            , "Ya tenía un timer corriendo (" FormatRemaining(existing["due"]) "). Se suma otro.")
+    tw.Add("Text", "xm y+12"
+        , isClose ? "Cerrarla en:" : (isTab ? "Volver a ella en:" : "Abrirla en:"))
+    delayEdit := tw.Add("Edit", "xm y+4 w110", gTimedLastDelay)
+    tw.Add("Text", "x+8 yp+4 cGray", "minutos")
+    tw.Add("Text", "xm y+12 w380 cGray"
+        , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
+          . (isClose ? "0 la cierra ahora mismo." : "0 la abre ahora mismo."))
+    ; El "Always on top" solo tiene sentido para los timers que abren.
+    aotChk := isClose ? ""
+        : tw.Add("CheckBox", "xm y+12", "Dejarla Always on top al abrirla")
+    startBtn := tw.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
+    cancelBtn := tw.Add("Button", "x+10 w130", "Cancelar")
+    startBtn.OnEvent("Click"
+        , (*) => TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName, exe, action))
+    cancelBtn.OnEvent("Click", (*) => tw.Destroy())
+    tw.OnEvent("Close", (*) => tw.Destroy())
+    tw.OnEvent("Escape", (*) => tw.Destroy())
+    tw.Show()
+    delayEdit.Focus()
+    SendMessage(0x00B1, 0, -1, delayEdit)   ; EM_SETSEL: deja el valor seleccionado
+}
+
+; Lee lo tipeado en la GUI de alta y devuelve segundos, o -1 si no se entiende.
+; Mismo formato que el prompt de traymond-timer.ahk:
+;   25 / 25m  -> minutos            1h30 / 1h30m -> 1 h 30 min
+;   2h        -> 2 horas            1m30 / 1m30s -> 1 min 30 s
+;   45s       -> 45 segundos        @17:45       -> a esa hora (mañana si ya pasó)
+;   0         -> ahora mismo
+ParseTimedDelaySeconds(text) {
+    s := Trim(text)
+    if (s = "")
+        return -1
+    if (SubStr(s, 1, 1) = "@") {
+        if !RegExMatch(Trim(SubStr(s, 2)), "^(\d{1,2})[:.](\d{2})$", &m)
+            return -1
+        hh := m[1] + 0, mm := m[2] + 0
+        if (hh > 23 || mm > 59)
+            return -1
+        target := FormatTime(A_Now, "yyyyMMdd") Format("{:02}{:02}00", hh, mm)
+        diff := DateDiff(target, A_Now, "Seconds")
+        if (diff <= 0)                     ; esa hora ya pasó hoy => es la de mañana
+            diff := DateDiff(DateAdd(target, 1, "Days"), A_Now, "Seconds")
+        return diff
+    }
+    if RegExMatch(s, "i)^(\d+)\s*h\s*(\d{1,2})?\s*m?$", &m)
+        return (m[1] * 60 + (m[2] = "" ? 0 : m[2] + 0)) * 60
+    if RegExMatch(s, "i)^(\d+)\s*m\s*(\d{1,2})\s*s?$", &m)
+        return m[1] * 60 + (m[2] + 0)
+    if RegExMatch(s, "i)^(\d+)\s*s$", &m)
+        return m[1] + 0
+    if RegExMatch(s, "i)^(\d+(?:[.,]\d+)?)\s*m?$", &m)
+        return Round(StrReplace(m[1], ",", ".") * 60)
+    return -1
+}
+
+TimedWindowStart(tw, hwnd, title, delayEdit, aotChk, tabName := "", exe := "", action := "open") {
+    global gTimedWindows, gTimedNextId, gTimedLastDelay
+    isTab := (tabName != "")
+    isClose := (action = "close")
+    dlgTitle := isClose ? (isTab ? "Cerrar pestaña" : "Cerrar ventana")
+                        : (isTab ? "Timer de pestaña" : "Timer de ventana")
+    typed := Trim(delayEdit.Value)
+    totalSec := ParseTimedDelaySeconds(typed)
+    if (totalSec < 0) {
+        tw.Opt("+OwnDialogs")
+        MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
+            , dlgTitle, 48
+        return
+    }
+    ; La pestaña puede sobrevivir a su ventana (se la arrastra a otra), así que
+    ; solo exigimos que la ventana siga viva para los timers de ventana.
+    if (!isTab && !WinExist("ahk_id " hwnd)) {
+        MsgBox "La ventana ya no existe.", dlgTitle, 48
+        tw.Destroy()
+        return
+    }
+    if (totalSec > 0)                      ; un "0" no se guarda como prefill
+        gTimedLastDelay := typed
+    item := Map(
+        "id", gTimedNextId,
+        "kind", isTab ? "tab" : "win",
+        "action", action,
+        "hwnd", hwnd,
+        "title", (title = "" ? "(sin título)" : title),
+        "due", A_TickCount + totalSec * 1000,
+        "aot", (aotChk && aotChk.Value) ? true : false)
+    if isTab {
+        item["tab"] := tabName
+        item["exe"] := exe
+    }
+    tw.Destroy()
+    ; 0 => sin cuenta regresiva: se ejecuta en el acto, como "Abrir/cerrar ya"
+    ; de la GUI de administración. No entra a la lista de timers.
+    if (totalSec = 0) {
+        RunTimedItem(item)
+        return
+    }
+    gTimedWindows.Push(item)
+    gTimedNextId += 1
+    TrayTip (isClose ? (isTab ? "Cierre de pestaña programado" : "Cierre de ventana programado")
+                     : (isTab ? "Timer de pestaña creado" : "Timer creado"))
+        , (isClose ? "Se cierra en " : "Se abre en ") FormatSeconds(totalSec)
+          . "`n" title "`nTimers activos: " gTimedWindows.Length, 2
+    RebuildTimedWindowsGui()
+}
+
+; Chequeo periódico (cada 0,5 s): dispara los vencidos y descarta los timers
+; cuya ventana se cerró mientras tanto.
+CheckTimedWindows() {
+    global gTimedWindows
+    changed := false
+    i := gTimedWindows.Length
+    while (i >= 1) {
+        item := gTimedWindows[i]
+        ; A los timers de pestaña no les miramos el hwnd: la pestaña puede haber
+        ; pasado a otra ventana. Se resuelven por título recién al vencer.
+        if (item["kind"] = "win" && !WinExist("ahk_id " item["hwnd"])) {
+            gTimedWindows.RemoveAt(i)
+            changed := true
+            TrayTip "Timer cancelado", "Se cerró la ventana:`n" item["title"], 2
+        } else if (A_TickCount >= item["due"]) {
+            gTimedWindows.RemoveAt(i)
+            changed := true
+            RunTimedItem(item)
+        }
+        i -= 1
+    }
+    if changed
+        RebuildTimedWindowsGui()
+}
+
+; Ejecuta el item vencido: lo abre o lo cierra, según kind y action.
+RunTimedItem(item) {
+    isClose := (item["action"] = "close")
+    if (item["kind"] = "tab") {
+        if isClose
+            CloseTimedTab(item)
+        else
+            OpenTimedTab(item)
+        return
+    }
+    if isClose {
+        CloseTimedWindow(item)
+        return
+    }
+    hwnd := item["hwnd"]
+    if !WinExist("ahk_id " hwnd)
+        return
+    try {
+        if (WinGetMinMax("ahk_id " hwnd) = -1)
+            WinRestore "ahk_id " hwnd
+        WinActivate "ahk_id " hwnd
+        ; if item["aot"]
+        ;    WinSetAlwaysOnTop true, "ahk_id " hwnd
+    }
+    TrayTip "Ventana abierta", item["title"], 2
+}
+
+; WinClose manda WM_CLOSE, así que la aplicación todavía puede preguntar si
+; guardar: cerrar con timer nunca descarta trabajo por su cuenta.
+CloseTimedWindow(item) {
+    hwnd := item["hwnd"]
+    if !WinExist("ahk_id " hwnd) {
+        TrayTip "Ventana ya cerrada", item["title"], 2
+        return
+    }
+    title := item["title"]
+    try {
+        live := WinGetTitle("ahk_id " hwnd)
+        if (live != "")
+            title := live
+    }
+    try WinClose "ahk_id " hwnd
+    TrayTip "Ventana cerrada", title, 2
+}
+
+; Busca la pestaña por título (primero en el navegador donde se guardó, después
+; en los demás). Devuelve [hwnd, elemento UIA] o "" si ya no está abierta.
+FindTimedTabTarget(item) {
+    global gTimedBrowserExes
+    exes := []
+    if (item["exe"] != "")
+        exes.Push(item["exe"])
+    for candidate in gTimedBrowserExes {
+        if (candidate != item["exe"])
+            exes.Push(candidate)
+    }
+    ; Ventanas a revisar: primero aquella en la que se guardó la pestaña (así un
+    ; título genérico tipo "New Tab" no engancha la de otra ventana), después el
+    ; resto del mismo navegador y por último los otros navegadores.
+    hwnds := []
+    if WinExist("ahk_id " item["hwnd"])
+        hwnds.Push(item["hwnd"])
+    for exe in exes {
+        for hwnd in WinGetList("ahk_exe " exe) {
+            if (hwnd != item["hwnd"])
+                hwnds.Push(hwnd)
+        }
+    }
+    ; Primera pasada por título exacto; si no aparece, segunda por coincidencia
+    ; parcial (los títulos de página cambian solos: "(3) Bandeja...", etc.).
+    for exact in [true, false] {
+        for hwnd in hwnds {
+            if (tab := FindBrowserTab(hwnd, item["tab"], exact))
+                return [hwnd, tab]
+        }
+    }
+    return ""
+}
+
+; Restaura la ventana, selecciona la pestaña y trae la ventana al frente.
+ActivateTimedTab(hwnd, tab) {
+    try {
+        if (WinGetMinMax("ahk_id " hwnd) = -1)
+            WinRestore "ahk_id " hwnd
+        tab.Select()
+        WinActivate "ahk_id " hwnd
+    } catch
+        return false
+    return true
+}
+
+OpenTimedTab(item) {
+    if !(target := FindTimedTabTarget(item)) {
+        TrayTip "Pestaña no encontrada"
+            , "Ya no está abierta:`n" item["title"], 2
+        return
+    }
+    ActivateTimedTab(target[1], target[2])
+    TrayTip "Pestaña abierta", item["title"], 2
+}
+
+; Cerrar una pestaña es seleccionarla y mandarle Ctrl+W: ninguno de los tres
+; navegadores expone por UIA un "cerrar pestaña" que se pueda invocar. Por eso
+; primero hay que confirmar que la ventana quedó activa -- si no, el Ctrl+W
+; terminaría cerrando la pestaña de otro lado.
+CloseTimedTab(item) {
+    if !(target := FindTimedTabTarget(item)) {
+        TrayTip "Pestaña no encontrada"
+            , "Ya no está abierta:`n" item["title"], 2
+        return
+    }
+    hwnd := target[1]
+    if (!ActivateTimedTab(hwnd, target[2]) || !WinWaitActive("ahk_id " hwnd, , 1)) {
+        TrayTip "No pude cerrar la pestaña"
+            , "La ventana no llegó a activarse:`n" item["title"], 2
+        return
+    }
+    Send "^w"
+    TrayTip "Pestaña cerrada", item["title"], 2
+}
+
+FindBrowserTab(hwnd, name, exact) {
+    try {
+        root := UIA.ElementFromHandle(hwnd)
+        for tab in root.FindElements({Type: "TabItem"}) {
+            try {
+                if (tab.Name = "")
+                    continue
+                live := NormalizeTabName(tab.Name)
+                if (live = "")
+                    continue
+                ; La segunda pasada acepta coincidencia parcial en cualquiera de
+                ; los dos sentidos: el título de la página puede haber crecido o
+                ; achicado desde que se guardó. Con un mínimo de 8 caracteres,
+                ; para no enganchar cualquier pestaña por un "Jira" suelto.
+                if exact {
+                    if (live = name)
+                        return tab
+                } else if (StrLen(live) >= 8 && StrLen(name) >= 8
+                    && (InStr(live, name) || InStr(name, live)))
+                    return tab
+            }
+        }
+    }
+    return ""
+}
+
+FindTimedWindowByHwnd(hwnd, action := "open") {
+    global gTimedWindows
+    for item in gTimedWindows {
+        if (item["kind"] = "win" && item["action"] = action && item["hwnd"] = hwnd)
+            return item
+    }
+    return ""
+}
+
+FindTimedTabByName(name, action := "open") {
+    global gTimedWindows
+    for item in gTimedWindows {
+        if (item["kind"] = "tab" && item["action"] = action && item["tab"] = name)
+            return item
+    }
+    return ""
+}
+
+; Texto de la columna "Tipo" de la GUI de administración.
+TimedItemKindLabel(item) {
+    return (item["action"] = "close" ? "Cerrar " : "Abrir ")
+         . (item["kind"] = "tab" ? "pestaña" : "ventana")
+}
+
+FormatRemaining(due) {
+    ms := due - A_TickCount
+    return FormatSeconds(ms > 0 ? Ceil(ms / 1000) : 0)
+}
+
+FormatSeconds(totalSec) {
+    h := totalSec // 3600
+    m := Mod(totalSec // 60, 60)
+    s := Mod(totalSec, 60)
+    return h > 0 ? Format("{:d}:{:02d}:{:02d}", h, m, s) : Format("{:d}:{:02d}", m, s)
+}
+
+; ---- GUI de administración de timers (Win+Shift+F6) ----
+ShowTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedGuiHdr
+    if IsObject(gTimedGui) {
+        gTimedGui.Show()
+        RebuildTimedWindowsGui()
+        return
+    }
+    g := Gui("+AlwaysOnTop", "Timers de ventanas")
+    g.MarginX := 10
+    g.MarginY := 10
+    g.SetFont("s9", "Segoe UI")
+    gTimedGuiHdr := g.Add("Text", "xm w540", "")
+    lv := g.Add("ListView", "xm w540 r8 Grid -Multi", ["#", "Restante", "Tipo", "Ventana / pestaña", "Top"])
+    lv.ModifyCol(1, 30)
+    lv.ModifyCol(2, 70)
+    lv.ModifyCol(3, 100)   ; entran "Cerrar ventana" / "Cerrar pestaña"
+    lv.ModifyCol(4, 290)
+    lv.ModifyCol(5, 40)
+    add1Btn := g.Add("Button", "xm w76", "+1 min")
+    add5Btn := g.Add("Button", "x+6 w76", "+5 min")
+    sub1Btn := g.Add("Button", "x+6 w76", "-1 min")
+    openBtn := g.Add("Button", "x+6 w96", "Abrir/cerrar ya")
+    delBtn := g.Add("Button", "x+6 w86", "Eliminar")
+    closeBtn := g.Add("Button", "x+6 w76", "Cerrar")
+    add1Btn.OnEvent("Click", (*) => TimedGuiAddTime(60))
+    add5Btn.OnEvent("Click", (*) => TimedGuiAddTime(300))
+    sub1Btn.OnEvent("Click", (*) => TimedGuiAddTime(-60))
+    openBtn.OnEvent("Click", (*) => TimedGuiRunNow())
+    delBtn.OnEvent("Click", (*) => TimedGuiDelete())
+    closeBtn.OnEvent("Click", (*) => CloseTimedWindowsGui())
+    lv.OnEvent("DoubleClick", (*) => TimedGuiRunNow())
+    g.OnEvent("Close", (*) => CloseTimedWindowsGui())
+    g.OnEvent("Escape", (*) => CloseTimedWindowsGui())
+    gTimedGui := g
+    gTimedGuiLV := lv
+    RebuildTimedWindowsGui()
+    g.Show()
+    SetTimer(TickTimedWindowsGui, 500)   ; refresca la cuenta regresiva
+}
+
+CloseTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedGuiHdr, gTimedGuiIds
+    SetTimer(TickTimedWindowsGui, 0)
+    if IsObject(gTimedGui)
+        gTimedGui.Destroy()
+    gTimedGui := ""
+    gTimedGuiLV := ""
+    gTimedGuiHdr := ""
+    gTimedGuiIds := []
+}
+
+; Reconstruye la lista completa (cuando cambia la cantidad de timers).
+RebuildTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedGuiHdr, gTimedGuiIds, gTimedWindows
+    if !IsObject(gTimedGui)
+        return
+    sel := gTimedGuiLV.GetNext(0)
+    gTimedGuiLV.Opt("-Redraw")
+    gTimedGuiLV.Delete()
+    gTimedGuiIds := []
+    for i, item in gTimedWindows {
+        title := item["title"]
+        ; El título de una ventana se refresca; el de una pestaña queda como se
+        ; guardó, que es justamente la clave con la que después la buscamos.
+        if (item["kind"] = "win") {
+            try {
+                live := WinGetTitle("ahk_id " item["hwnd"])
+                if (live != "")
+                    title := live
+            }
+        }
+        gTimedGuiIds.Push(item["id"])
+        gTimedGuiLV.Add("", i, FormatRemaining(item["due"])
+            , TimedItemKindLabel(item), title, item["aot"] ? "Sí" : "")
+    }
+    gTimedGuiLV.Opt("+Redraw")
+    if (sel >= 1 && sel <= gTimedWindows.Length)
+        gTimedGuiLV.Modify(sel, "Select Focus")
+    hint := "   ·  Win+F6 abrir ventana · Ctrl+Win+F6 abrir pestaña · Win+Alt+U + F4 cerrar"
+    gTimedGuiHdr.Text := gTimedWindows.Length
+        ? "Timers corriendo: " gTimedWindows.Length hint
+        : "No hay timers corriendo" hint
+}
+
+; Solo actualiza la columna "Restante" para no perder la selección ni parpadear.
+TickTimedWindowsGui() {
+    global gTimedGui, gTimedGuiLV, gTimedWindows
+    if !IsObject(gTimedGui) {
+        SetTimer(TickTimedWindowsGui, 0)
+        return
+    }
+    if (gTimedGuiLV.GetCount() != gTimedWindows.Length) {
+        RebuildTimedWindowsGui()
+        return
+    }
+    for i, item in gTimedWindows
+        gTimedGuiLV.Modify(i, "Col2", FormatRemaining(item["due"]))
+}
+
+TimedGuiSelectedIndex() {
+    global gTimedGuiLV, gTimedGuiIds, gTimedWindows
+    if !IsObject(gTimedGuiLV)
+        return 0
+    row := gTimedGuiLV.GetNext(0)
+    if (row < 1 || row > gTimedGuiIds.Length) {
+        TrayTip "Timers de ventanas", "Seleccioná una fila de la lista primero.", 2
+        return 0
+    }
+    id := gTimedGuiIds[row]
+    for i, item in gTimedWindows {
+        if (item["id"] = id)
+            return i
+    }
+    return 0
+}
+
+TimedGuiAddTime(deltaSec) {
+    global gTimedWindows
+    if !(idx := TimedGuiSelectedIndex())
+        return
+    item := gTimedWindows[idx]
+    newDue := item["due"] + deltaSec * 1000
+    if (newDue < A_TickCount + 1000)     ; restando tiempo nunca lo mandamos al pasado
+        newDue := A_TickCount + 1000
+    item["due"] := newDue
+    TickTimedWindowsGui()
+}
+
+TimedGuiRunNow() {
+    global gTimedWindows
+    if !(idx := TimedGuiSelectedIndex())
+        return
+    item := gTimedWindows.RemoveAt(idx)
+    RunTimedItem(item)
+    RebuildTimedWindowsGui()
+}
+
+TimedGuiDelete() {
+    global gTimedWindows
+    if !(idx := TimedGuiSelectedIndex())
+        return
+    item := gTimedWindows.RemoveAt(idx)
+    TrayTip "Timer eliminado", item["title"], 2
+    RebuildTimedWindowsGui()
+}
+
+; ============================================================================
+; url_firefox.ahk  (en work es url_chrome.ahk; en la laptop personal se usa Firefox)
+; ============================================================================
+^!g::Run('"C:\Program Files\Mozilla Firefox\firefox.exe" --new-window "https://docs.google.com/spreadsheets/d/1Nnjsc_sP1qFOMX8VNbibMK_C23MlZj2OMOvA_R3gsDQ/edit?gid=0#gid=0"')
+^!+g::Run('"C:\Program Files\Mozilla Firefox\firefox.exe" --new-tab "https://docs.google.com/spreadsheets/d/1Nnjsc_sP1qFOMX8VNbibMK_C23MlZj2OMOvA_R3gsDQ/edit?gid=0#gid=0"')
+
+; ============================================================================
+; Firefox: buscar en pestañas abiertas (Ctrl+Shift+A)   (ex !_STARTUP.ahk)
+;   Enfoca la barra de direcciones (Alt+D), espera 50 ms y escribe "@tabs "
+;   para activar la búsqueda de pestañas. Solo con Firefox al frente.
+;   Está dentro de un #HotIf, así que el menú de hotkeys lo apaga con una flag.
+; ============================================================================
+#HotIf HKEnabled("firefox.tabs") && WinActive("ahk_exe firefox.exe")
+^+a::
+{
+    SendInput "!d"
+    Sleep 50
+    SendInput "@tabs{Space}"
+}
+#HotIf
+
+; ============================================================================
+; convCount.ahk
+; ============================================================================
+^!#t::
+{
+    global counter
+    counter += 1
+    timestamp := FormatTime(A_Now, "dd/MM/yyyy - [HH:mm]")
+    text := "Conversation User Input n° " counter " @ " timestamp " . "
+    SendText text
+}
+
+^!#r::
+{
+    global counter, lastControlPress
+    now := A_TickCount
+    if lastControlPress && (now - lastControlPress <= 700) {
+        lastControlPress := 0
+        OpenCounterGui()
+        return
+    }
+    counter := 0
+    lastControlPress := now
+    ToolTip "Conversation counter reset"
+    SetTimer () => ToolTip(), -1000
+}
+
+OpenCounterGui() {
+    global counter
+    g := Gui("+AlwaysOnTop", "Set conversation counter")
+    g.SetFont("s10", "Segoe UI")
+    g.AddText("w370", "Set current counter number:")
+    edit := g.AddEdit("w370 Number", counter)
+    saveBtn := g.AddButton("Default w120", "Save")
+    cancelBtn := g.AddButton("x+10 w120", "Cancel")
+    sendTextBtn := g.AddButton("x+10 w120", "Ask")
+    saveBtn.OnEvent("Click", (*) => SaveCounterFromGui(g, edit))
+    cancelBtn.OnEvent("Click", (*) => g.Destroy())
+    sendTextBtn.OnEvent("Click", (*) => PutAskTextOnClipboardAndClose(g))
+    g.OnEvent("Escape", (*) => g.Destroy())
+    g.Show()
+    edit.Focus()
+    SendMessage 0xB1, 0, -1, edit
+}
+
+SaveCounterFromGui(g, edit) {
+    global counter
+    value := Trim(edit.Value)
+    if !RegExMatch(value, "^\d+$") {
+        MsgBox "Please enter a whole number, for example: 0, 1, 25."
+        return
+    }
+    counter := Integer(value)
+    g.Destroy()
+    ToolTip "Conversation counter set to " counter
+    SetTimer () => ToolTip(), -1000
+}
+
+PutAskTextOnClipboardAndClose(g) {
+    A_Clipboard := "En que numero de input de chat estoy en esta conversacion (incluyendo este)?"
+    g.Destroy()
+    ToolTip "Question copied to clipboard"
+    SetTimer () => ToolTip(), -1000
+}
+
+; ============================================================================
+; createTXT.ahk
+; ============================================================================
+#+t::
+{
+    path := GetActiveExplorerPath()
+    if !path {
+        MsgBox "No valid Explorer window detected."
+        return
+    }
+    ShowCreateFileGui(path)
+}
+
+; HKEnabled() permite apagarlo desde el menú de hotkeys: este #HotIf no es
+; alcanzable por Hotkey(), así que se guarda con una flag (tipo "flag").
+#HotIf HKEnabled("create_txt.instantTxt") && IsExplorerActive()
+#+MButton::
+{
+    path := GetActiveExplorerPath()
+    if !path {
+        ToolTip "No valid Explorer folder detected.", 500, 500
+        SetTimer () => ToolTip(), -1200
+        return
+    }
+    file := CreateNewFile(path, "New Text Document", ".txt")
+    if file {
+        ToolTip "Created: " file, 500, 500
+        SetTimer () => ToolTip(), -1200
+    }
+}
+#HotIf
+
+ShowCreateFileGui(path) {
+    g := Gui("+AlwaysOnTop", "Create New File")
+    g.SetFont("s10", "Segoe UI")
+    g.AddText("xm ym", "Folder:")
+    g.AddEdit("xm w420 ReadOnly", path)
+    g.AddText("xm y+12", "File name:")
+    nameEdit := g.AddEdit("xm w280", "New Document")
+    g.AddText("x+10 yp+3", "Type:")
+    extDDL := g.AddDropDownList("x+5 yp-3 w100", [".txt", ".md", ".json", ".py", ".ahk", ".bat", ".ps1"])
+    extDDL.Value := 1
+    timestampCheck := g.AddCheckbox("xm y+12", "Use timestamp as file name")
+    openCheck := g.AddCheckbox("xm y+8", "Open file after creating")
+    createBtn := g.AddButton("xm y+16 w100 Default", "Create")
+    cancelBtn := g.AddButton("x+10 w100", "Cancel")
+    createBtn.OnEvent("Click", (*) => Submit())
+    cancelBtn.OnEvent("Click", (*) => g.Destroy())
+    g.OnEvent("Close", (*) => g.Destroy())
+
+    Submit() {
+        ext := extDDL.Text
+        name := nameEdit.Value
+
+        if (name = "New Document" || name = "") {
+            defaults := Map(
+                ".txt", "New Text Document",
+                ".md",  "New README",
+                ".json","New data",
+                ".py",  "New Py script",
+                ".ahk", "New AHK script",
+                ".bat", "New batch script",
+                ".ps1", "New Powershell script"
+            )
+            if defaults.Has(ext)
+                name := defaults[ext]
+        }
+
+        if timestampCheck.Value {
+            name := FormatTime(A_Now, "yyyy-MM-dd HH-mm-ss")
+        }
+
+        file := CreateNewFile(path, name, ext)
+
+        if !file {
+            MsgBox "Could not create file."
+            return
+        }
+
+        fullPath := path "\" file
+
+        if openCheck.Value {
+            Run fullPath
+        }
+
+        ToolTip "Created: " file, 500, 500
+        SetTimer () => ToolTip(), -1200
+
+        g.Destroy()
+    }
+
+    g.Show()
+}
+
+CreateNewFile(path, baseName, ext) {
+    baseName := SanitizeFileName(baseName)
+
+    if !baseName {
+        baseName := "New File"
+    }
+
+    if !DirExist(path) {
+        return ""
+    }
+
+    file := baseName ext
+    i := 1
+
+    while FileExist(path "\" file) {
+        file := baseName " (" i ")" ext
+        i++
+    }
+
+    try {
+        FileAppend "", path "\" file
+    } catch {
+        return ""
+    }
+
+    return file
+}
+
+SanitizeFileName(name) {
+    name := Trim(name)
+    name := RegExReplace(name, "\.[^\.\\/:*?`"<>|]+$")
+    name := RegExReplace(name, '[\\/:*?"<>|]', "-")
+    name := RegExReplace(name, "[\s\.]+$")
+    return name
+}
+
+IsExplorerActive() {
+    winClass := WinGetClass("A")
+    return winClass = "CabinetWClass" || winClass = "ExploreWClass"
+}
+
+GetActiveExplorerPath() {
+    if !IsExplorerActive() {
+        return ""
+    }
+    return Explorer_GetPath()
+}
+
+Explorer_GetPath() {
+    try {
+        shell := ComObject("Shell.Application")
+    } catch {
+        return ""
+    }
+
+    activeHwnd := WinGetID("A")
+
+    for window in shell.Windows {
+        try {
+            if window.hwnd = activeHwnd {
+                path := window.Document.Folder.Self.Path
+                if DirExist(path) {
+                    return path
+                }
+                return ""
+            }
+        }
+    }
+
+    return ""
+}
+
+; ============================================================================
+; resize.ahk
+; ============================================================================
+^!MButton::
+{
+    winID := WinGetID("A")
+    if (winID) {
+        WinMove , , 300, 300, "ahk_id " winID
+    }
+}
+
+^!RButton::
+{
+    winID := WinGetID("A")
+    if (winID) {
+        WinRestore "ahk_id " winID
+        WinGetPos &X, &Y, &W, &H, "ahk_id " winID
+        newX := (A_ScreenWidth - W) // 2
+        newY := (A_ScreenHeight - H) // 2
+        WinMove newX, newY, , , "ahk_id " winID
+    }
+}
+
+; ============================================================================
+; Atajos de la laptop personal  (ex ahk_STARTUP\!_STARTUP.ahk, v1 -> v2)
+;   Solo los que no chocan con nada de arriba: donde había choque quedó la
+;   versión de work (Ctrl+Numpad. = ";", guiones de Ctrl/Alt+Numpad-, knnn,
+;   kxxx) y los atajos de mayúsculas los cubre Ctrl+F2 (ConvertCase).
+; ============================================================================
+
+; ---- Multimedia con AltGr + Numpad ----
+RAlt & Numpad2::Send "{Volume_Down}"
+RAlt & Numpad8::Send "{Volume_Up}"
+RAlt & Numpad3::Send "{Volume_Mute}"
+RAlt & Numpad4::Send "{Media_Prev}"
+RAlt & Numpad6::Send "{Media_Next}"
+
+; ---- Símbolos y ventanas ----
+^!.::Send "{>}"
+^!,::Send "{<}"
+RAlt & {::WinMaximize "A"    ; AltGr + {  -> maximizar ventana activa
+RAlt & -::WinMinimize "A"    ; AltGr + -  -> minimizar ventana activa
+
+; ---- Matlab: ejecutar línea (Alt+F9) ----
+!F9::
+{
+    SendInput "{End}"
+    Sleep 50
+    SendInput "+{Home}"      ; seleccionar contenido de la línea
+    Sleep 50
+    SendInput "{F9}"
+}
+
+; ---- Fix PDF Links (Ctrl+Alt+D) ----
+^!d::
+{
+    SendInput "!d"
+    Sleep 50
+    SendInput "{Home}"
+    Sleep 50
+    Send "^{Right}"
+    Sleep 10
+    Send "^{Right}"
+    Sleep 10
+    Send "^{Right}"
+    SendInput "+{End}"
+    Sleep 50
+    SendInput "^c"
+    Sleep 10
+    SendInput "^a"
+    SendInput "^v"
+    SendInput "{Enter}"
+}
+
+; ---- Ctrl+Shift+Bloq Mayús -> 4 x Tab + Enter ----
+^+CapsLock::
+{
+    Send "{Tab 4}"
+    Sleep 100
+    Send "{Enter}"
+}
+
+; ---- Autotexto: símbolos y rutas ----
+:R*?:k6ini::<
+:R*?:k6fin::>
+::kuser::`%userprofile`%
+::kapp::`%appdata`%
+
+; ---- Autotexto: fechas extra (los básicos están en autodate.ahk, arriba) ----
+:X:kdd1::SendNowDate("dd/MM/yy", 1)       ; mañana
+:X:kd1d::SendNowDate("dd/MM/yy", -1)      ; ayer
+:X*?:skkk::SendNowDate("MM.dd")           ; simplificado inverso
+:X:kss1::SendNowDate("dd/MM", 1)          ; mañana simplificado
+:X:ks1s::SendNowDate("dd/MM", -1)         ; ayer simplificado
+:X*?:kmmd::SendNowDate("MM.dd")           ; MonthDay
+:X*?:kjj1::SendNowDate("dd-MM-yy", 1)     ; mañana
+:X*?:kzzz::SendNowDate("yy_MM_dd_HHmm")
+:X*?:khdx::SendNowDate("yy-MM-dd_HH-mm")
+
+SendNowDate(fmt, offsetDays := 0) {
+    t := A_Now
+    if (offsetDays != 0)
+        t := DateAdd(t, offsetDays, "Days")
+    SendInput FormatTime(t, fmt)
+}
+
+; ============================================================================
+; Referencia de comandos  (Win + Shift + ?  ->  popup flotante con el HTML)
+; ============================================================================
+; SC00C es la tecla '?' en el layout Latinoamericano (es-AR): '?' = Shift+esa
+; tecla, por eso se bindea por scancode y queda independiente del símbolo.
+; Carga AHK_Unified_Master_Referencia_ie.html (copia con CSS sin variables,
+; porque el control ActiveX usa el motor IE que no soporta var(--x)).
+#+SC00C::ShowReferenceGui()
+
+ShowReferenceGui() {
+    static refGui := ""   ; instancia única, reutilizada entre llamadas
+
+    ; Toggle: si ya está visible, se cierra.
+    if (refGui != "" && DllCall("IsWindowVisible", "ptr", refGui.Hwnd))
+    {
+        refGui.Hide()
+        return
+    }
+
+    ; Primera invocación: construir la ventana y cargar el HTML una sola vez.
+    if (refGui = "")
+    {
+        refFile := A_ScriptDir "\AHK_Unified_Master_Referencia_ie.html"
+        if !FileExist(refFile)
+        {
+            MsgBox("No se encontró el archivo de referencia:`n" refFile, "Referencia", "Iconx")
+            return
+        }
+        refGui := Gui("+AlwaysOnTop +ToolWindow +Resize", "Referencia de comandos — AHK")
+        refGui.BackColor := "1b1d22"
+        refGui.MarginX := 0
+        refGui.MarginY := 0
+        wb := refGui.Add("ActiveX", "x0 y0 w1020 h740 vRefBrowser", "Shell.Explorer")
+        wb.Value.Navigate(refFile)
+        refGui.OnEvent("Close", (*) => refGui.Hide())   ; X cierra (oculta, no destruye)
+        refGui.OnEvent("Escape", (*) => refGui.Hide())  ; Esc cierra
+        refGui.OnEvent("Size", ReferenceGuiResize)       ; el browser sigue el tamaño
+    }
+
+    refGui.Show("w1020 h740 Center")
+}
+
+; Mantiene el control web ocupando todo el área cliente al redimensionar.
+ReferenceGuiResize(thisGui, minMax, w, h) {
+    if (minMax = -1)   ; minimizada: no reposicionar
+        return
+    thisGui["RefBrowser"].Move(0, 0, w, h)
+}
+
+; ============================================================================
+; Activar / desactivar hotkeys  (botón "Hotkeys…" en la GUI del Manager)
+; ============================================================================
+;   Permite apagar hotkeys individuales o secciones enteras sin suspender ni
+;   matar el script. Apagar usa Hotkey()/Hotstring() con "Off", que devuelve la
+;   tecla a su comportamiento nativo de Windows, en lugar de dejarla atrapada
+;   por un handler que no hace nada.
+;
+;   El estado vive solo en memoria: un Reload devuelve todo a activado.
+;
+;   Tipos de ítem:
+;     "hotkey"    -> Hotkey(hk, , "On"/"Off")
+;     "hotstring" -> Hotstring(hk, , "On"/"Off")
+;     "flag"      -> lo lee HKEnabled() desde un #HotIf ya existente
+;
+;   Los hotkeys definidos dentro de un #HotIf no son alcanzables por Hotkey(),
+;   porque la directiva genera una función anónima que no se puede reproducir
+;   con HotIf(). Por eso: los chords (*e, *i) se apagan desde su tecla de
+;   entrada (Ctrl+Alt+5 y Win+Alt+U), ~Escape/~!Space del Manager quedan fuera
+;   de la lista, y #+MButton (createTXT instantáneo) usa el tipo "flag".
+;   El F4 de "cerrar con timer" también usa "flag", pero por otro motivo: son
+;   dos acciones distintas (una o dos pulsaciones) sobre el mismo #HotIf, y
+;   Win+Alt+U lee esos flags para decidir si arma el F4 o no.
+;
+;   MANTENIMIENTO: gHKSections repite hotkeys y descripciones que también viven
+;   en AHK_Unified_Master_Referencia_ie.html, o sea que hay tres fuentes de
+;   verdad (código, HTML, este registro). Los campos title/src/label/desc están
+;   pensados para poder generar esa referencia desde acá más adelante y dejar
+;   una sola fuente.
+; ============================================================================
+
+global gHKState := Map()        ; "seccion.item" -> false cuando está apagado
+global gHKGui := ""             ; ventana del menú (singleton)
+global gHKTree := ""            ; el TreeView con los checkboxes
+global gHKNodes := Map()        ; itemId del TreeView -> descriptor del nodo
+global gHKChildren := Map()     ; itemId de sección   -> [itemIds de sus hijos]
+global gHKBusy := false         ; guarda de reentrada para el evento ItemCheck
+
+global gHKSections := [
+    { id: "ayuda", title: "Ayuda / esta referencia", src: "", items: [
+        { id: "ref", type: "hotkey", hk: "#+SC00C", label: "Win + Shift + ?",
+          desc: "Abre/cierra la ventana de referencia de comandos" } ] },
+
+    { id: "arrows", title: "Teclado y navegación", src: "arrows-keystrokes.ahk", items: [
+        { id: "up",    type: "hotkey", hk: "^!W",        label: "Ctrl + Alt + W",        desc: "Envía Flecha Arriba" },
+        { id: "down",  type: "hotkey", hk: "^!S",        label: "Ctrl + Alt + S",        desc: "Envía Flecha Abajo" },
+        { id: "enter", type: "hotkey", hk: "<^CapsLock", label: "Ctrl izq + Bloq Mayús", desc: "Envía Enter (anula el toggle de Mayús)" },
+        { id: "bksp",  type: "hotkey", hk: "+Delete",    label: "Shift + Supr",          desc: "Envía Backspace (pisa el borrado permanente de Windows)" } ] },
+
+    { id: "autodate", title: "Fechas y horas rápidas (hotstrings)", src: "autodate.ahk", items: [
+        { id: "kddd", type: "hotstring", hk: ":R*?:kddd", label: "kddd", desc: "Fecha dd/MM/yy" },
+        { id: "ksss", type: "hotstring", hk: ":R*?:ksss", label: "ksss", desc: "Fecha dd/MM" },
+        { id: "knnn", type: "hotstring", hk: ":R*?:knnn", label: "knnn", desc: "Nombre del día actual" },
+        { id: "kxxx", type: "hotstring", hk: ":R*?:kxxx", label: "kxxx", desc: "Fecha y hora yyMMdd_HHmm" },
+        { id: "kaaa", type: "hotstring", hk: ":R*?:kaaa", label: "kaaa", desc: "Fecha yyMMdd" },
+        { id: "kjjd", type: "hotstring", hk: ":R*?:kjjd", label: "kjjd", desc: "Fecha dd-MM-yy" },
+        { id: "kyyy", type: "hotstring", hk: ":R*?:kyyy", label: "kyyy", desc: "Fecha y hora dd-MM-yy HH:mm" },
+        { id: "khhh", type: "hotstring", hk: ":R*?:khhh", label: "khhh", desc: "Hora HH:mm" } ] },
+
+    { id: "mails", title: "Correos rápidos (hotstrings)", src: "ahk_STARTUP\!_personal.ahk", items: [
+        { id: "kfz", type: "hotstring", hk: "::kfz", label: "kfz", desc: "Escribe el mail definido en !_personal.ahk (dispara al terminar la palabra)" },
+        { id: "kzf", type: "hotstring", hk: "::kzf", label: "kzf", desc: "Escribe zapatafacundo17@gmail.com (dispara al terminar la palabra)" } ] },
+
+    { id: "chord", title: "Texto rápido (chord)", src: "Nuevo", items: [
+        { id: "endflag", type: "hotkey", hk: "^!5", label: "Ctrl + Alt + 5, luego E",
+          desc: "Escribe el texto literal %%end flag (la E debe llegar en menos de 2 s)" } ] },
+
+    { id: "simbolos", title: "Símbolos rápidos", src: "backwards-slash.ahk · checkmark.ahk · dashes.ahk", items: [
+        { id: "slash",   type: "hotkey", hk: "+NumpadDiv", label: "Shift + Numpad /", desc: "Envía la barra invertida \" },
+        { id: "check",   type: "hotkey", hk: "!^F10",      label: "Ctrl + Alt + F10", desc: "Envía el símbolo de check ✔" },
+        { id: "arrowup", type: "hotkey", hk: "!^F9",       label: "Ctrl + Alt + F9",  desc: "Envía la flecha arriba ↑" },
+        { id: "semicolon", type: "hotkey", hk: "^NumpadDot", label: "Ctrl + Numpad .", desc: "Envía un punto y coma `;" },
+        { id: "colon",   type: "hotkey", hk: "!NumpadDot", label: "Alt + Numpad .",   desc: "Envía un signo de dos puntos :" },
+        { id: "emdash",  type: "hotkey", hk: "^NumpadSub", label: "Ctrl + Numpad -",  desc: "Envía un guion largo — (em dash)" },
+        { id: "endash",  type: "hotkey", hk: "!NumpadSub", label: "Alt + Numpad -",   desc: "Envía un guion medio – (en dash)" } ] },
+
+    { id: "brightness", title: "Brillo de pantalla", src: "brightness.ahk", items: [
+        { id: "down", type: "hotkey", hk: "#,", label: "Win + ,", desc: "Baja el brillo 5 puntos (mínimo 10)" },
+        { id: "up",   type: "hotkey", hk: "#.", label: "Win + .", desc: "Sube el brillo 5 puntos (máximo 100)" },
+        { id: "up10",   type: "hotkey", hk: "RAlt & PgDn", label: "AltGr + AvPág", desc: "Sube el brillo 10 puntos (máximo 100)" },
+        { id: "down10", type: "hotkey", hk: "RAlt & PgUp", label: "AltGr + RePág", desc: "Baja el brillo 10 puntos (mínimo 10)" } ] },
+
+    { id: "calendar", title: "Calendario emergente", src: "calendar.ahk", items: [
+        { id: "show", type: "hotkey", hk: "#Numpad5", label: "Win + Numpad 5",
+          desc: "Abre un calendario para copiar una fecha al portapapeles" } ] },
+
+    { id: "logger", title: "Registro de texto / log", src: "logger.ahk", items: [
+        { id: "stamp", type: "hotkey", hk: "!^F7", label: "Ctrl + Alt + F7",
+          desc: "Escribe separador + fecha/hora + separador" },
+        { id: "sep",   type: "hotkey", hk: "!^l",  label: "Ctrl + Alt + L",
+          desc: "Espera 1 o 2 y escribe un separador corto o largo" } ] },
+
+    { id: "move_resize", title: "Mover y redimensionar ventanas con el mouse", src: "move_resize.ahk", items: [
+        { id: "move",   type: "hotkey", hk: "Alt & LButton", label: "Alt + Click Izq (mantener)",
+          desc: "Arrastra la ventana que está bajo el cursor" },
+        { id: "resize", type: "hotkey", hk: "Alt & RButton", label: "Alt + Click Der (mantener)",
+          desc: "Redimensiona la ventana bajo el cursor según el cuadrante" } ] },
+
+    { id: "mute", title: "Silenciar audio", src: "mute.ahk", items: [
+        { id: "mute", type: "hotkey", hk: "#Numpad3", label: "Win + Numpad 3",
+          desc: "Mutea el audio si no estaba muteado (no alterna)" } ] },
+
+    { id: "idle", title: "Ocultar al escritorio por inactividad", src: "idle_edit_v2.ahk", items: [
+        { id: "config", type: "hotkey", hk: "#NumpadMult", label: "Win + Numpad *",
+          desc: "Fija los minutos de inactividad tras los que se oculta todo (0 = off)" } ] },
+
+    { id: "stimer", title: "Timer → Win+Alt+S", src: "!_STARTUP_merged.ahk", items: [
+        { id: "open", type: "hotkey", hk: "#!u", label: "Win + Alt + U, luego I",
+          desc: "Abre la ventana del temporizador (la I debe llegar en menos de 1 s). Tiempo: 25, 90m, 2h, 1h30, 45s, @17:45; 0 cancela" } ] },
+
+    { id: "media", title: "Multimedia y volumen", src: "pauseplay.ahk", items: [
+        { id: "playpause",  type: "hotkey", hk: "^!A",             label: "Ctrl + Alt + A",        desc: "Play / Pausa" },
+        { id: "playpause2", type: "hotkey", hk: "RAlt & Numpad5",  label: "AltGr + Numpad 5",      desc: "Play / Pausa" },
+        { id: "prev",       type: "hotkey", hk: "^!Left",          label: "Ctrl + Alt + Izquierda", desc: "Pista anterior" },
+        { id: "next",       type: "hotkey", hk: "^!Right",         label: "Ctrl + Alt + Derecha",  desc: "Pista siguiente" },
+        { id: "prev2",      type: "hotkey", hk: "^!Numpad4",       label: "Ctrl + Alt + Numpad 4", desc: "Pista anterior" },
+        { id: "next2",      type: "hotkey", hk: "^!Numpad6",       label: "Ctrl + Alt + Numpad 6", desc: "Pista siguiente" },
+        { id: "mute",       type: "hotkey", hk: "^!Numpad3",       label: "Ctrl + Alt + Numpad 3", desc: "Mute de volumen" },
+        { id: "volup",      type: "hotkey", hk: "^!NumpadAdd",     label: "Ctrl + Alt + Numpad +", desc: "Sube el volumen" },
+        { id: "voldown",    type: "hotkey", hk: "^!NumpadSub",     label: "Ctrl + Alt + Numpad -", desc: "Baja el volumen" },
+        { id: "volup2",     type: "hotkey", hk: "^!Numpad8",       label: "Ctrl + Alt + Numpad 8", desc: "Sube el volumen" },
+        { id: "voldown2",   type: "hotkey", hk: "^!Numpad2",       label: "Ctrl + Alt + Numpad 2", desc: "Baja el volumen" } ] },
+
+    { id: "timer_media", title: "Timer para PausePlayMedia", src: "Nuevo", items: [
+	{ id: "timer_playpause", type: "hotkey", hk:"#!u", label: "Win + Alt + U, luego A",
+	  desc: "Abre la ventana del temporizador de pausa/reanudar (la A debe llegar en menos de 2 s). Tiempo: 25, 90m, 2h, 1h30, 45s, @17:45; 0 cancela" } ] },
+
+    { id: "tabsel", title: "Tabulación y selección", src: "right_tab.ahk · selectcellcontent.ahk · volume.ahk", items: [
+        { id: "tab",     type: "hotkey", hk: "RCtrl & Numpad5", label: "Ctrl der + Numpad 5", desc: "Envía Tab" },
+        { id: "cell",    type: "hotkey", hk: "!F2",             label: "Alt + F2",            desc: "Backspace + Ctrl+Z (limpia una celda y deshace)" },
+        { id: "volup",   type: "hotkey", hk: "#WheelUp",        label: "Win + Rueda arriba",  desc: "Sube el volumen" },
+        { id: "voldown", type: "hotkey", hk: "#WheelDown",      label: "Win + Rueda abajo",   desc: "Baja el volumen" } ] },
+
+    { id: "convert_case", title: "Convertir mayúsculas/minúsculas", src: "ConvertCase.ahk", items: [
+        { id: "gui", type: "hotkey", hk: "^F2", label: "Ctrl + F2",
+          desc: "Abre la ventana con los 25 estilos (texto, código, nombres de archivo) para el texto seleccionado" } ] },
+
+    { id: "macro_name", title: "Macro de nombre/firma", src: "macro_insta_name.ahk", items: [
+        { id: "main", type: "hotkey", hk: "^!x",  label: "Ctrl + Alt + X",
+          desc: "Secuencia Esc, Alt+Shift+Fin, Ctrl+A, Ctrl+V, Tab, Enter, Shift+A" },
+        { id: "alt",  type: "hotkey", hk: "^!+x", label: "Ctrl + Alt + Shift + X",
+          desc: "Secuencia Alt+Shift+H, Flecha Abajo, Enter" } ] },
+
+    { id: "wise", title: "Wise Reminder", src: "find_wise_reminder.ahk", items: [
+        { id: "find", type: "hotkey", hk: "#z", label: "Win + Z",
+          desc: "Activa Wise Reminder (lo rescata de la bandeja o lo lanza)" },
+        { id: "find2", type: "hotkey", hk: "#|", label: "Win + |",
+          desc: "Igual que Win + Z (atajo de la laptop personal)" } ] },
+
+    { id: "hourglass", title: "Hourglass", src: "open_hourglass.ahk", items: [
+        { id: "open", type: "hotkey", hk: "#^+z", label: "Win + Ctrl + Shift + Z",
+          desc: "Activa Hourglass, o lo lanza si no está corriendo" },
+        { id: "open2", type: "hotkey", hk: "#+|", label: "Win + Shift + |",
+          desc: "Igual que Win + Ctrl + Shift + Z (atajo de la laptop personal)" } ] },
+
+    { id: "open_program", title: "Abrir programa", src: "open-program-GUI.ahk", items: [
+        { id: "gui", type: "hotkey", hk: "^#p", label: "Ctrl + Win + P",
+          desc: "Abre la ventana con un botón por programa configurado" } ] },
+
+    { id: "gcal", title: "Buscar pestaña de Google Calendar", src: "find_google_calendar.ahk", items: [
+        { id: "find", type: "hotkey", hk: "+NumpadEnter", label: "Shift + Numpad Enter",
+          desc: "Busca y activa la pestaña de Google Calendar en el navegador" } ] },
+
+    { id: "kill_all", title: "Cerrar ventanas masivamente", src: "kill_all.ahk", items: [
+        { id: "kill", type: "hotkey", hk: "^+!k", label: "Ctrl + Shift + Alt + K",
+          desc: "Cierra todas las ventanas visibles excepto Firefox/Chrome/Edge y el escritorio" } ] },
+
+    { id: "show_time", title: "Atajo Mostrar hora", src: "Show_Time.ahk", items: [
+        { id: "clock", type: "hotkey", hk: "#c", label: "Win + C",
+          desc: "Win+B, 7 veces Derecha y Enter para llegar al reloj" } ] },
+
+    { id: "cycler", title: "Ciclador de ventanas y pestañas guardadas", src: "Cycler_Windows_v3.ahk", items: [
+        { id: "add",        type: "hotkey", hk: "#F5",   label: "Win + F5",                desc: "Guarda la ventana activa en la lista" },
+        { id: "add_tab",    type: "hotkey", hk: "^#F5",  label: "Ctrl + Win + F5",         desc: "Guarda la pestaña activa del navegador en la lista" },
+        { id: "cycle",      type: "hotkey", hk: "#F4",   label: "Win + F4",                desc: "Cicla a la siguiente ventana o pestaña guardada" },
+        { id: "filter",     type: "hotkey", hk: "^#F4",  label: "Ctrl + Win + F4",         desc: "Alterna qué cicla Win+F4: todo / solo pestañas / solo ventanas" },
+        { id: "remove",     type: "hotkey", hk: "#+F5",  label: "Win + Shift + F5",        desc: "Quita la ventana activa de la lista" },
+        { id: "remove_tab", type: "hotkey", hk: "^+#F5", label: "Ctrl + Shift + Win + F5", desc: "Quita la pestaña activa del navegador de la lista" },
+        { id: "list",       type: "hotkey", hk: "#+F4",  label: "Win + Shift + F4",        desc: "Muestra la lista flotante de ventanas y pestañas guardadas" } ] },
+
+    { id: "timed_windows", title: "Ventanas con timer", src: "Nuevo", items: [
+        { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece (25, 90m, 2h, 1h30, 45s, @17:45)" },
+        { id: "tab",   type: "hotkey", hk: "^#F6", label: "Ctrl + Win + F6",  desc: "Guarda la pestaña activa del navegador y elige en cuánto tiempo vuelve (25, 90m, 2h, 1h30, 45s, @17:45)" },
+        { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo, de abrir y de cerrar (sumar/restar tiempo, ejecutar ya, eliminar)" } ] },
+
+    { id: "timed_close", title: "Cerrar ventanas y pestañas con timer", src: "Nuevo", items: [
+        { id: "tab", type: "flag", hk: "", label: "Win + Alt + U, luego F4",
+          desc: "Programa el cierre de la pestaña activa del navegador (25, 90m, 2h, 1h30, 45s, @17:45)" },
+        { id: "win", type: "flag", hk: "", label: "Win + Alt + U, luego F4 F4",
+          desc: "Programa el cierre de la ventana activa; el segundo F4 tiene 450 ms para llegar" } ] },
+
+    { id: "sheets", title: "Accesos a Google Sheets", src: "url_firefox.ahk", items: [
+        { id: "window", type: "hotkey", hk: "^!g",  label: "Ctrl + Alt + G",         desc: "Abre la planilla en una ventana nueva de Firefox" },
+        { id: "tab",    type: "hotkey", hk: "^!+g", label: "Ctrl + Alt + Shift + G", desc: "Abre la planilla en una pestaña nueva de Firefox" } ] },
+
+    { id: "firefox", title: "Firefox", src: "!_STARTUP.ahk (personal)", items: [
+        { id: "tabs", type: "flag", hk: "", label: "Ctrl + Shift + A (en Firefox)",
+          desc: "Alt+D y escribe @tabs para buscar entre las pestañas abiertas" } ] },
+
+    { id: "conv_count", title: "Contador de conversación", src: "convCount.ahk", items: [
+        { id: "add",   type: "hotkey", hk: "^!#t", label: "Ctrl + Alt + Win + T",
+          desc: "Incrementa el contador y escribe el marcador de texto" },
+        { id: "reset", type: "hotkey", hk: "^!#r", label: "Ctrl + Alt + Win + R",
+          desc: "Reinicia el contador; doble pulsación abre la ventana para fijarlo" } ] },
+
+    { id: "create_txt", title: "Crear archivos rápido", src: "createTXT.ahk", items: [
+        { id: "gui",        type: "hotkey", hk: "#+t", label: "Win + Shift + T",
+          desc: "Abre la ventana para crear un archivo en la carpeta del Explorador" },
+        { id: "instantTxt", type: "flag",   hk: "",    label: "Win + Shift + Click central",
+          desc: "Crea al instante New Text Document.txt (solo con el Explorador activo)" } ] },
+
+    { id: "resize_kb", title: "Mover/redimensionar con teclado", src: "resize.ahk", items: [
+        { id: "small",  type: "hotkey", hk: "^!MButton", label: "Ctrl + Alt + Click central",
+          desc: "Redimensiona la ventana activa a 300x300 px" },
+        { id: "center", type: "hotkey", hk: "^!RButton", label: "Ctrl + Alt + Click derecho",
+          desc: "Restaura y centra la ventana activa" } ] },
+
+    { id: "manager", title: "AHK Manager", src: "AHK_Manager.ahk", items: [
+        { id: "show", type: "hotkey", hk: "^!r", label: "Ctrl + Alt + R", protected: true,
+          desc: "Muestra la ventana del Manager (no se puede apagar)" } ] },
+
+    { id: "macro", title: "Macro Recorder (simple)", src: "Macro.Recorder.exe", items: [
+        { id: "open", type: "hotkey", hk: "#F3", label: "Win + F3",
+          desc: "Lanza Macro.Recorder.exe (F1: grabar / parar / reproducir)" } ] },
+
+    { id: "personal", title: "Atajos de la laptop personal", src: "!_STARTUP.ahk (personal)", items: [
+        { id: "voldown", type: "hotkey", hk: "RAlt & Numpad2", label: "AltGr + Numpad 2", desc: "Baja el volumen" },
+        { id: "volup",   type: "hotkey", hk: "RAlt & Numpad8", label: "AltGr + Numpad 8", desc: "Sube el volumen" },
+        { id: "mute",    type: "hotkey", hk: "RAlt & Numpad3", label: "AltGr + Numpad 3", desc: "Mute de volumen" },
+        { id: "prev",    type: "hotkey", hk: "RAlt & Numpad4", label: "AltGr + Numpad 4", desc: "Pista anterior" },
+        { id: "next",    type: "hotkey", hk: "RAlt & Numpad6", label: "AltGr + Numpad 6", desc: "Pista siguiente" },
+        { id: "gt",      type: "hotkey", hk: "^!.",            label: "Ctrl + Alt + .",   desc: "Envía >" },
+        { id: "lt",      type: "hotkey", hk: "^!,",            label: "Ctrl + Alt + ,",   desc: "Envía <" },
+        { id: "max",     type: "hotkey", hk: "RAlt & {",       label: "AltGr + {",        desc: "Maximiza la ventana activa" },
+        { id: "min",     type: "hotkey", hk: "RAlt & -",       label: "AltGr + -",        desc: "Minimiza la ventana activa" },
+        { id: "matlab",  type: "hotkey", hk: "!F9",            label: "Alt + F9",         desc: "Matlab: selecciona la línea actual y la ejecuta (F9)" },
+        { id: "fixpdf",  type: "hotkey", hk: "^!d",            label: "Ctrl + Alt + D",   desc: "Arregla el link del PDF en la barra de direcciones" },
+        { id: "tabs4",   type: "hotkey", hk: "^+CapsLock",     label: "Ctrl + Shift + Bloq Mayús", desc: "4 × Tab y Enter" },
+        { id: "k6ini",   type: "hotstring", hk: ":R*?:k6ini", label: "k6ini", desc: "Escribe <" },
+        { id: "k6fin",   type: "hotstring", hk: ":R*?:k6fin", label: "k6fin", desc: "Escribe >" },
+        { id: "kuser",   type: "hotstring", hk: "::kuser",    label: "kuser", desc: "Escribe %userprofile%" },
+        { id: "kapp",    type: "hotstring", hk: "::kapp",     label: "kapp",  desc: "Escribe %appdata%" },
+        { id: "kdd1",    type: "hotstring", hk: ":X:kdd1",    label: "kdd1",  desc: "Fecha de mañana dd/MM/yy" },
+        { id: "kd1d",    type: "hotstring", hk: ":X:kd1d",    label: "kd1d",  desc: "Fecha de ayer dd/MM/yy" },
+        { id: "skkk",    type: "hotstring", hk: ":X*?:skkk",  label: "skkk",  desc: "Fecha MM.dd" },
+        { id: "kss1",    type: "hotstring", hk: ":X:kss1",    label: "kss1",  desc: "Mañana dd/MM" },
+        { id: "ks1s",    type: "hotstring", hk: ":X:ks1s",    label: "ks1s",  desc: "Ayer dd/MM" },
+        { id: "kmmd",    type: "hotstring", hk: ":X*?:kmmd",  label: "kmmd",  desc: "Fecha MM.dd" },
+        { id: "kjj1",    type: "hotstring", hk: ":X*?:kjj1",  label: "kjj1",  desc: "Mañana dd-MM-yy" },
+        { id: "kzzz",    type: "hotstring", hk: ":X*?:kzzz",  label: "kzzz",  desc: "Fecha y hora yy_MM_dd_HHmm" },
+        { id: "khdx",    type: "hotstring", hk: ":X*?:khdx",  label: "khdx",  desc: "Fecha y hora yy-MM-dd_HH-mm" } ] },
+
+    { id: "pruebas", title: "Pruebas manuales", src: "", items: [
+        { id: "youtube", type: "hotkey", hk: "#ñ", label: "Win + Ñ", desc: "Abre youtube.com" } ] }
+]
+
+; Estado de una entrada. Todo arranca activado, así que la ausencia de clave
+; equivale a "prendido".
+HKEnabled(key) {
+    global gHKState
+    if !IsSet(gHKState)
+        return true
+    return !gHKState.Has(key) || gHKState[key]
+}
+
+; Aplica el estado a una entrada. Devuelve "" si salió bien, o el mensaje de
+; error (típicamente porque el string de gHKSections no matchea la definición
+; real del hotkey).
+HKApply(entry, key, enabled) {
+    global gHKState
+    switch entry.type {
+        case "hotkey":
+            HotIf()   ; contexto global explícito: apunta a la variante sin #HotIf
+            try
+                Hotkey(entry.hk, , enabled ? "On" : "Off")
+            catch as err
+                return err.Message
+        case "hotstring":
+            try
+                Hotstring(entry.hk, , enabled ? "On" : "Off")
+            catch as err
+                return err.Message
+        case "flag":
+            ; no hay nada que registrar: HKEnabled() lo lee desde el #HotIf
+    }
+    gHKState[key] := enabled
+    return ""
+}
+
+HKToggleTip(msg) {
+    ToolTip(msg)
+    SetTimer(() => ToolTip(), -2500)
+}
+
+HKAddButton(g, opts, text, cb) {
+    btn := g.AddButton(opts, text)
+    btn.OnEvent("Click", cb)
+    btn.SetFont("s10", "Calibri")
+    return btn
+}
+
+ShowHotkeyTogglesGui() {
+    global gHKGui, gHKTree, gHKNodes, gHKChildren, gHKSections
+
+    ; Toggle: si ya está visible, se cierra. La ventana se construye una sola vez.
+    if (gHKGui != "") {
+        if DllCall("IsWindowVisible", "ptr", gHKGui.Hwnd)
+            gHKGui.Hide()
+        else
+            gHKGui.Show()
+        return
+    }
+
+    gHKNodes := Map()
+    gHKChildren := Map()
+
+    gHKGui := Gui("+AlwaysOnTop", "Hotkeys del master — activar / desactivar")
+    gHKGui.BackColor := "313131"
+    gHKGui.Add("Text", "x10 y8 w720 h24 cc47cff", "Hotkeys del script maestro:").SetFont("s13 Bold", "Calibri")
+    gHKGui.Add("Text", "x10 y+2 w720 h18 cffffff",
+        "Destildá un hotkey para devolverle su comportamiento nativo de Windows. "
+        "Destildar una sección apaga el bloque completo. El estado se pierde al recargar el script.")
+        .SetFont("s9", "Calibri")
+
+    gHKTree := gHKGui.Add("TreeView", "x10 y+6 w720 h460 Checked Background313131 cFFFFFF")
+    gHKTree.SetFont("s9.5", "Calibri")
+
+    ; Al construir, cada entrada se reaplica con su estado actual. Es un no-op
+    ; funcional, pero valida que el string de hotkey exista de verdad: las que
+    ; fallan se marcan con [!] en lugar de quedar como un checkbox muerto.
+    badCount := 0
+    for sec in gHKSections {
+        secNode := gHKTree.Add(sec.title (sec.src = "" ? "" : "   (" sec.src ")"), 0, "Check")
+        gHKNodes[secNode] := { kind: "section", sec: sec }
+        gHKChildren[secNode] := []
+
+        for entry in sec.items {
+            key := sec.id "." entry.id
+            err := HKApply(entry, key, HKEnabled(key))
+            isBad := (err != "")
+            label := entry.label "  —  " entry.desc
+            if isBad {
+                label .= "   [!] " err
+                badCount++
+            }
+            itemNode := gHKTree.Add(label, secNode, HKEnabled(key) ? "Check" : "")
+            gHKNodes[itemNode] := { kind: "item", key: key, entry: entry, bad: isBad,
+                                    protected: entry.HasOwnProp("protected") && entry.protected }
+            gHKChildren[secNode].Push(itemNode)
+        }
+        HKSyncSection(secNode)
+    }
+
+    gHKTree.OnEvent("ItemCheck", HKTreeItemCheck)
+
+    HKAddButton(gHKGui, "x10 y+8 w140", "Todo On",       (*) => HKSetAll(true))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Todo Off",      (*) => HKSetAll(false))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Expandir todo", (*) => HKExpandAll(true))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Colapsar todo", (*) => HKExpandAll(false))
+    HKAddButton(gHKGui, "x+5 yp  w140", "Cerrar",        (*) => gHKGui.Hide())
+
+    if (badCount > 0)
+        gHKGui.Add("Text", "x10 y+6 w720 cffb86c",
+            badCount " entrada(s) marcada(s) con [!]: el string de gHKSections no matchea "
+            "la definición real del hotkey y no se puede apagar.").SetFont("s9", "Calibri")
+
+    gHKGui.OnEvent("Close",  (*) => gHKGui.Hide())
+    gHKGui.OnEvent("Escape", (*) => gHKGui.Hide())
+    gHKGui.Show()
+}
+
+; El TreeView de AHK no tiene checkbox tri-estado, así que la sección queda
+; tildada mientras al menos uno de sus hijos esté activo.
+HKSyncSection(secNode) {
+    global gHKTree, gHKNodes, gHKChildren
+    if !gHKChildren.Has(secNode)
+        return
+    anyOn := false
+    for child in gHKChildren[secNode] {
+        cn := gHKNodes[child]
+        if (cn.bad || HKEnabled(cn.key)) {
+            anyOn := true
+            break
+        }
+    }
+    gHKTree.Modify(secNode, anyOn ? "Check" : "-Check")
+}
+
+; Aplica el estado de un hijo, respetando protegidos e inválidos. Devuelve el
+; estado que quedó realmente.
+HKApplyChild(child, enabled) {
+    global gHKTree, gHKNodes
+    cn := gHKNodes[child]
+    if (cn.bad || (cn.protected && !enabled)) {
+        gHKTree.Modify(child, "Check")
+        return true
+    }
+    HKApply(cn.entry, cn.key, enabled)
+    gHKTree.Modify(child, enabled ? "Check" : "-Check")
+    return enabled
+}
+
+HKTreeItemCheck(tv, item, checked) {
+    global gHKNodes, gHKChildren, gHKBusy, gHKTree
+
+    ; Modify() vuelve a disparar ItemCheck: sin esta guarda, la cascada de una
+    ; sección con 8 hijos se convierte en una tormenta de eventos.
+    if (gHKBusy || !gHKNodes.Has(item))
+        return
+    gHKBusy := true
+
+    node := gHKNodes[item]
+    if (node.kind = "section") {
+        for child in gHKChildren[item]
+            HKApplyChild(child, checked)
+        HKSyncSection(item)
+    } else if (node.bad) {
+        gHKTree.Modify(item, "Check")
+        HKToggleTip("Ese hotkey no se encontró en el script (ver [!]): no se puede apagar.")
+    } else if (node.protected && !checked) {
+        gHKTree.Modify(item, "Check")
+        HKToggleTip("Ctrl+Alt+R no se puede apagar: es la única forma de reabrir este menú.")
+    } else {
+        HKApply(node.entry, node.key, checked)
+        ; Redundante cuando lo dispara un clic (Windows ya movió el tilde), pero
+        ; deja el checkbox y el estado siempre consistentes.
+        gHKTree.Modify(item, checked ? "Check" : "-Check")
+        HKSyncSection(gHKTree.GetParent(item))
+    }
+
+    gHKBusy := false
+}
+
+HKSetAll(enabled) {
+    global gHKChildren, gHKBusy
+    gHKBusy := true
+    for secNode, kids in gHKChildren {
+        for child in kids
+            HKApplyChild(child, enabled)
+        HKSyncSection(secNode)
+    }
+    gHKBusy := false
+}
+
+HKExpandAll(expand) {
+    global gHKTree, gHKChildren
+    for secNode, kids in gHKChildren
+        gHKTree.Modify(secNode, expand ? "Expand" : "-Expand")
+}
+
+; ============================================================================
+; Lanzador de scripts auxiliares  (botón "Aux Scripts…" en la GUI del Manager)
+;   Requiere aux-scripts.ini (recuerda qué quedó tildado y qué hacer al iniciar
+;   el master; se crea solo la primera vez que se guarda algo).
+;
+;   Estos cinco scripts no se fusionaron acá adentro: los dos de traymond-timer
+;   son AHK v1, que no puede convivir con v2 en un mismo proceso, y los tres v2
+;   traen sus propios hotkeys y su propio estado. Corren aparte, como
+;   Macro.Recorder.exe; esta ventana solo decide cuáles arrancar. Se abre al
+;   iniciar el master (ver AuxStartup, al final del archivo) y desde el botón
+;   "Aux Scripts…" del Manager.
+; ============================================================================
+global gAuxIniFile := A_ScriptDir "\aux-scripts.ini"
+
+; needs = proceso externo sin el cual el script no arranca. traymond-timer.ahk
+; se cierra con un MsgBox si Traymond no está corriendo, así que se chequea
+; antes de lanzarlo en lugar de dejar que salte ese cartel.
+global gAuxScripts := [
+    { id: "traymond_timer", ver: "v1", needs: "Traymond.exe",
+      label: "Traymond Timer",
+      path:  A_ScriptDir "\traymond-timer\traymond-timer.ahk",
+      desc:  "Win+Shift+Z esconde la ventana y pregunta en cuántos minutos devolverla" },
+
+    { id: "traymond_daily", ver: "v1", needs: "",
+      label: "Traymond restore 16:40",
+      path:  A_ScriptDir "\traymond-timer\restore-at-fixed-time.ahk",
+      desc:  "Sin hotkeys: a las 16:40 devuelve todo lo que Traymond tenga escondido" },
+
+    { id: "clipboard_ocr", ver: "v2", needs: "",
+      label: "Clipboard OCR",
+      path:  A_ScriptDir "\ClipboardOCR.ahk",
+      desc:  "Ctrl+Alt+O: OCR de la imagen del portapapeles en una ventana editable" },
+
+    { id: "cold_turkey", ver: "v2", needs: "",
+      label: "Bloque CT (Cold Turkey)",
+      path:  A_ScriptDir "\ColdTurkeyActivado.ahk",
+      desc:  "Sin hotkeys: recordatorios en pantalla a intervalos al azar (pide la config al abrir)" },
+
+    { id: "greenshot_slow_mouse", ver: "v2", needs: "",
+      label: "Greenshot Slow Mouse",
+      path:  A_ScriptDir "\GreenshotSlowMouse.ahk",
+      desc:  "Sin hotkeys: baja la velocidad del mouse mientras está la captura de región" },
+
+    { id: "kill_browsers", ver: "v2", needs: "",
+      label: "Kill Browsers",
+      path:  A_ScriptDir "\KillBrowsers\KillBrowsers.ahk",
+      desc:  "Ctrl+Alt+K: cierra Firefox/Chrome (GUI o directo, según kill_preferences.ini)" },
+
+    { id: "simple_reminders", ver: "v2", needs: "",
+      label: "Simple Reminders",
+      path:  A_ScriptDir "\SimpleReminders\SimpleReminders.ahk",
+      desc:  "Win+Alt+Z: recordatorios de texto con pop-up silencioso" },
+
+    { id: "rhythm_game", ver: "v2", needs: "",
+      label: "Rhythm Speed (juego)",
+      path:  A_ScriptDir "\RhythmGame.ahk",
+      desc:  "Sin hotkeys globales: juego de ritmo de 4 carriles, sesiones de 25 segundos" }
+]
+
+; Qué hacer con la lista al iniciar el master. Se elige desde la misma ventana.
+global gAuxModeKeys   := ["ask", "auto", "off"]
+global gAuxModeLabels := ["Preguntar (abrir esta ventana)",
+                          "Lanzar los tildados sin preguntar",
+                          "No hacer nada"]
+
+global gAuxGui    := ""     ; ventana (instancia única)
+global gAuxRows   := []     ; [{ entry, cb, state }] en el orden de gAuxScripts
+global gAuxStatus := ""     ; línea de resultado al pie
+
+; ---------------------------------------------------------------------------
+; Estado persistido
+; ---------------------------------------------------------------------------
+
+; Todo arranca tildado: la primera vez conviene ver la lista completa y
+; destildar lo que no se quiera.
+AuxSelected(id) {
+    global gAuxIniFile
+    return IniRead(gAuxIniFile, "Selection", id, "1") = "1"
+}
+
+AuxSaveSelection() {
+    global gAuxRows, gAuxIniFile
+    for row in gAuxRows
+        IniWrite(row.cb.Value ? "1" : "0", gAuxIniFile, "Selection", row.entry.id)
+}
+
+AuxStartupMode() {
+    global gAuxIniFile, gAuxModeKeys
+    mode := IniRead(gAuxIniFile, "Startup", "Mode", "ask")
+    for key in gAuxModeKeys
+        if (mode = key)
+            return mode
+    return "ask"
+}
+
+; ---------------------------------------------------------------------------
+; Detección y lanzado
+; ---------------------------------------------------------------------------
+
+; Cada auxiliar corre en su propio proceso, cuya ventana (oculta) se titula
+; "<ruta completa> - AutoHotkey v<version>": la ruta alcanza para encontrarlo.
+; Los dos settings se restauran porque esta función también corre en el hilo de
+; auto-ejecución, donde cambiarlos fijaría el default de todos los hilos que
+; arranquen después.
+AuxIsRunning(path) {
+    prevMatch := A_TitleMatchMode, prevHidden := A_DetectHiddenWindows
+    SetTitleMatchMode(2)
+    DetectHiddenWindows(true)
+    found := WinExist(path " ahk_class AutoHotkey")
+    SetTitleMatchMode(prevMatch)
+    DetectHiddenWindows(prevHidden)
+    return found
+}
+
+; Se lanza con el launcher del UX de AutoHotkey (el mismo de la asociación de
+; archivo), que elige el intérprete leyendo el #Requires del script. Es la única
+; forma de arrancar los dos de traymond-timer: A_AhkPath apunta al exe v2 que
+; corre este master y no puede ejecutar v1.
+; Devuelve { status: "launched" | "running" | "error", msg }.
+AuxLaunch(entry) {
+    if !FileExist(entry.path)
+        return { status: "error", msg: "no se encontró el archivo" }
+    if AuxIsRunning(entry.path)
+        return { status: "running", msg: "" }
+    if (entry.needs != "" && !ProcessExist(entry.needs))
+        return { status: "error", msg: entry.needs " no está corriendo" }
+    try
+        Run(AuxLaunchCmd(entry.path))
+    catch as err
+        return { status: "error", msg: err.Message }
+    return { status: "launched", msg: "" }
+}
+
+; Sin /Launch el launcher del UX no termina: después de arrancar al intérprete se
+; queda esperando a que muera el hijo o el padre, y solo sale enseguida si el
+; padre es explorer.exe (ver LaunchScript en UX\launcher.ahk). Lanzado desde acá
+; el padre es el master, así que quedaba un AutoHotkeyUX.exe ocioso por cada
+; auxiliar, visible en la lista del Manager y al que "Reload All" le hacía
+; relanzar su script. El switch va antes de la ruta, de ahí que no alcance con
+; Run(ruta): hay que armar la línea entera.
+; El comando sale del registro y no hardcodeado: en esta máquina hay dos
+; instalaciones de AutoHotkey y solo una tiene carpeta UX.
+AuxLaunchCmd(path) {
+    try {
+        progId := RegRead("HKEY_CLASSES_ROOT\.ahk")
+        cmd    := RegRead("HKEY_CLASSES_ROOT\" progId "\Shell\Open\Command")
+    } catch
+        return '"' path '"'
+    ; Si la asociación no pasa por el launcher no sirve /Launch: AutoHotkey.exe a
+    ; secas no conoce ese switch.
+    if !InStr(cmd, "launcher.ahk")
+        return '"' path '"'
+    ; Queda '"...\AutoHotkeyUX.exe" "...\launcher.ahk"', sin la cola "%1" %*.
+    return RegExReplace(cmd, '\s*"?%1"?(\s+%\*)?\s*$') ' /Launch "' path '"'
+}
+
+; Devuelve { text, failed } con el resumen ya armado para mostrar.
+AuxLaunchEntries(entries) {
+    launched := [], running := [], failed := []
+    for entry in entries {
+        res := AuxLaunch(entry)
+        switch res.status {
+            case "launched": launched.Push(entry.label)
+            case "running":  running.Push(entry.label)
+            default:         failed.Push(entry.label " (" res.msg ")")
+        }
+    }
+    parts := []
+    if (launched.Length > 0)
+        parts.Push("Lanzados: " AuxJoin(launched))
+    if (running.Length > 0)
+        parts.Push("Ya corrían: " AuxJoin(running))
+    if (failed.Length > 0)
+        parts.Push("Fallaron: " AuxJoin(failed))
+    return { text: parts.Length > 0 ? AuxJoin(parts, "   |   ") : "Nada que hacer.",
+             failed: failed.Length }
+}
+
+AuxJoin(items, sep := ", ") {
+    out := ""
+    for item in items
+        out .= (out = "" ? "" : sep) item
+    return out
+}
+
+; ---------------------------------------------------------------------------
+; Ventana
+; ---------------------------------------------------------------------------
+
+ShowAuxScriptsGui() {
+    global gAuxGui, gAuxRows, gAuxScripts, gAuxStatus, gAuxModeKeys, gAuxModeLabels
+
+    ; La ventana se construye una sola vez; después solo se refresca y se vuelve
+    ; a mostrar, así los tildes quedan como los dejó el usuario.
+    if (gAuxGui != "") {
+        AuxRefreshRows()
+        gAuxGui.Show()
+        WinActivate("ahk_id " gAuxGui.Hwnd)
+        return
+    }
+
+    gAuxRows := []
+
+    gAuxGui := Gui("+AlwaysOnTop", "Scripts auxiliares del master")
+    gAuxGui.BackColor := "313131"
+    gAuxGui.Add("Text", "x10 y8 w600 h24 cc47cff", "Scripts auxiliares:").SetFont("s13 Bold", "Calibri")
+    gAuxGui.Add("Text", "x10 y+2 w600 h32 cffffff",
+        "Cada uno corre en su propio proceso, con sus propios hotkeys. Tildá los que "
+        "quieras y apretá 'Lanzar tildados': los que ya están corriendo se saltean. "
+        "Para pararlos, usá Kill en la lista del Manager.").SetFont("s9", "Calibri")
+
+    for entry in gAuxScripts {
+        cb := gAuxGui.Add("Checkbox", "x10 y+12 w330 cffffff" (AuxSelected(entry.id) ? " Checked" : ""), entry.label)
+        cb.SetFont("s10 Bold", "Calibri")
+        gAuxGui.Add("Text", "x+6 yp w24 h17 c9a9a9a", entry.ver).SetFont("s9", "Calibri")
+        state := gAuxGui.Add("Text", "x+6 yp w224 h17 c9a9a9a", "")
+        state.SetFont("s9", "Calibri")
+        gAuxGui.Add("Text", "x28 y+1 w572 h17 c9a9a9a", entry.desc).SetFont("s9", "Calibri")
+        gAuxRows.Push({ entry: entry, cb: cb, state: state })
+    }
+
+    modeIdx := 1
+    for i, key in gAuxModeKeys
+        if (key = AuxStartupMode())
+            modeIdx := i
+
+    gAuxGui.Add("Text", "x10 y+18 w140 h22 cffffff", "Al iniciar el master:").SetFont("s10", "Calibri")
+    modeDdl := gAuxGui.Add("DropDownList", "x+4 yp-3 w290 Choose" modeIdx, gAuxModeLabels)
+    modeDdl.SetFont("s10", "Calibri")
+    modeDdl.OnEvent("Change", AuxModeChanged)
+
+    HKAddButton(gAuxGui, "x10 y+14 w150", "Lanzar tildados", (*) => AuxLaunchSelected())
+    HKAddButton(gAuxGui, "x+5 yp  w110", "Tildar todo",      (*) => AuxSetAllChecks(true))
+    HKAddButton(gAuxGui, "x+5 yp  w110", "Destildar todo",   (*) => AuxSetAllChecks(false))
+    HKAddButton(gAuxGui, "x+5 yp  w100", "Refrescar",        (*) => AuxRefreshRows())
+    HKAddButton(gAuxGui, "x+5 yp  w100", "Cerrar",           (*) => AuxCloseGui())
+
+    gAuxStatus := gAuxGui.Add("Text", "x10 y+10 w590 h48 cffb86c", "")
+    gAuxStatus.SetFont("s9", "Calibri")
+
+    gAuxGui.OnEvent("Close",  (*) => AuxCloseGui())
+    gAuxGui.OnEvent("Escape", (*) => AuxCloseGui())
+
+    AuxRefreshRows()
+    gAuxGui.Show()
+}
+
+; Repinta la columna de estado. Opt() sobre un Text no redibuja por sí solo:
+; sin Redraw() queda el texto anterior fantasma sobre el fondo oscuro.
+AuxRefreshRows() {
+    global gAuxRows
+    for row in gAuxRows {
+        if !FileExist(row.entry.path) {
+            text := "[falta el archivo]", color := "cff5555"
+        } else if AuxIsRunning(row.entry.path) {
+            text := "[corriendo]", color := "c50fa7b"
+        } else {
+            text := "[detenido]", color := "c9a9a9a"
+        }
+        row.state.Text := text
+        row.state.Opt(color)
+        row.state.Redraw()
+    }
+}
+
+AuxSetAllChecks(on) {
+    global gAuxRows
+    for row in gAuxRows
+        row.cb.Value := on
+    AuxSaveSelection()
+}
+
+AuxLaunchSelected() {
+    global gAuxRows
+    AuxSaveSelection()
+    picked := []
+    for row in gAuxRows
+        if row.cb.Value
+            picked.Push(row.entry)
+    if (picked.Length = 0) {
+        AuxSetStatus("No hay ningún script tildado.")
+        return
+    }
+    AuxSetStatus(AuxLaunchEntries(picked).text)
+    ; Un .ahk lanzado por asociación pasa primero por el launcher de AutoHotkey,
+    ; así que su ventana tarda un momento en existir: el refresco va con retardo.
+    SetTimer(AuxRefreshRows, -1500)
+}
+
+AuxModeChanged(ctrl, *) {
+    global gAuxIniFile, gAuxModeKeys
+    if (ctrl.Value >= 1 && ctrl.Value <= gAuxModeKeys.Length) {
+        IniWrite(gAuxModeKeys[ctrl.Value], gAuxIniFile, "Startup", "Mode")
+        AuxSetStatus("Guardado. Al iniciar el master: " ctrl.Text)
+    }
+}
+
+AuxSetStatus(msg) {
+    global gAuxStatus
+    if (gAuxStatus != "")
+        gAuxStatus.Text := msg
+}
+
+; Los tildes se guardan al cerrar, así la próxima vez -- y el modo "auto" del
+; arranque -- ven la última selección.
+AuxCloseGui() {
+    global gAuxGui
+    AuxSaveSelection()
+    gAuxGui.Hide()
+}
+
+; ---------------------------------------------------------------------------
+; Arranque
+; ---------------------------------------------------------------------------
+
+AuxStartup() {
+    switch AuxStartupMode() {
+        case "auto": AuxStartupAutoLaunch()
+        case "off":  return
+        default:     ShowAuxScriptsGui()
+    }
+}
+
+; En modo "auto" no hay ventana donde poner el resumen, así que solo se avisa
+; cuando algo no arrancó.
+AuxStartupAutoLaunch() {
+    global gAuxScripts
+    picked := []
+    for entry in gAuxScripts
+        if AuxSelected(entry.id)
+            picked.Push(entry)
+    if (picked.Length = 0)
+        return
+    res := AuxLaunchEntries(picked)
+    if (res.failed > 0)
+        TrayTip res.text, "Scripts auxiliares", 2
+}
+
+; ============================================================================
+; AHK_Manager.ahk  (Ctrl+Alt+R reabre/activa la ventana del Manager)
+; ============================================================================
+^!r::
+{
+    MyGui.Show()
+    Refresh()
+}
+
+MyGui := Gui()
+MyGui.Title := "AHK Manager"
+MyGui.BackColor := "313131"
+MyGui.Add("Text", "x5 y3 w290 h50 cc47cff", "Running AHK Scripts:").SetFont("s13 Bold", "Calibri")
+MyGui.Add("Text", "x265 y3 w120 h50 cffffff", "List Refresh:").SetFont("s11", "Calibri")
+
+iconPath := "C:\Windows\System32\Shell32.dll"
+iconNumber := 239
+icon := MyGui.Add("Picture", "x347 y3 w20 h20 Icon" . iconNumber, iconPath).OnEvent("Click", (*) => Refresh())
+
+Scripts := MyGui.Add("ListBox", "x5 y25 w365 h200 vScriptList Background313131 cFFFFFF")
+Scripts.SetFont("s9.5")
+
+AddButton(x, y, w, text, callback) {
+    btn := MyGui.AddButton(x " " y " " w, text)
+    btn.OnEvent("Click", callback)
+    btn.SetFont("s10")
+    return btn
+}
+
+; Row 1
+AddButton("x10", "y+5", "w85", "Reload All", (*) => ManageAllScripts("Reload"))
+AddButton("x+5", "yp", "w85", "Suspend All", (*) => ManageAllScripts("Suspend"))
+AddButton("x+5", "yp", "w85", "Pause All", (*) => ManageAllScripts("Pause"))
+AddButton("x+5", "yp", "w85", "Kill All", (*) => ManageAllScripts("Kill"))
+
+; Row 2
+AddButton("x10", "y+5", "w85", "Reload", (*) => ReloadScript())
+AddButton("x+5", "yp", "w85", "Suspend", (*) => SuspendScript())
+AddButton("x+5", "yp", "w85", "Pause Script", (*) => PauseScript())
+AddButton("x+5", "yp", "w85", "Kill", (*) => ExitScript())
+
+; Row 3
+AddButton("x10", "y+5", "w85", "Select - Edit", (*) => EditScript())
+AddButton("x+5", "yp", "w85", "Open Folder", (*) => Run(A_ScriptDir))
+AddButton("x+5", "yp", "w85", "GUI Reload", (*) => Reload())
+AddButton("x+5", "yp", "w85", "Quit", (*) => ExitApp())
+
+; Row 4
+AddButton("x10", "y+5", "w174", "Macro Recorder", (*) => OpenMacroRecorder())
+AddButton("x+5", "yp",  "w174", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
+
+; Row 5
+AddButton("x10", "y+5", "w354", "Aux Scripts…", (*) => ShowAuxScriptsGui())
+
+MyGui.OnEvent("Close", (*) => MyGui.Hide())
+MyGui.Show("w375 h400")
+Refresh()
+
+; Escape / Alt+Espacio solo afectan cuando la ventana del Manager está activa
+#HotIf WinActive("ahk_id " MyGui.Hwnd)
+~Escape::MyGui.Hide()   ; solo oculta la ventana: para cerrar el script está "Quit"
+~!Space::Reload
+#HotIf
+
+; AutoHotkey publishes exactly one piece of run state to other processes: while
+; a script is suspended, the "Suspend Hotkeys" item in its own File menu carries
+; a check mark. This holds for both v1 and v2 scripts.
+IsSuspended(hWnd) {
+    static ID_FILE_SUSPEND := 65404, MF_BYCOMMAND := 0, MF_CHECKED := 0x8
+    if !(hMenu := DllCall("GetMenu", "Ptr", hWnd, "Ptr"))
+        return false
+    state := DllCall("GetMenuState", "Ptr", hMenu, "UInt", ID_FILE_SUSPEND, "UInt", MF_BYCOMMAND, "UInt")
+    return (state != 0xFFFFFFFF) && (state & MF_CHECKED)
+}
+
+; Pause has no such indicator - AutoHotkey ticks it on the tray menu only, and
+; another process cannot read that menu - so the Manager remembers which scripts
+; it paused itself. Keyed by window handle, which changes when a script is
+; reloaded or restarted (both of which start it unpaused); PrunePaused() drops
+; handles that are gone. A script paused from its own tray menu or by its own
+; hotkey is invisible to us and still shows as [Running].
+PausedScripts() {
+    static paused := Map()
+    return paused
+}
+
+IsPaused(hWnd) {
+    return PausedScripts().Has(Integer(hWnd))
+}
+
+TogglePaused(hWnd) {
+    paused := PausedScripts(), hWnd := Integer(hWnd)
+    if paused.Has(hWnd)
+        paused.Delete(hWnd)
+    else
+        paused[hWnd] := true
+}
+
+ClearPaused(hWnd) {
+    paused := PausedScripts(), hWnd := Integer(hWnd)
+    if paused.Has(hWnd)
+        paused.Delete(hWnd)
+}
+
+PrunePaused() {
+    paused := PausedScripts()
+    DetectHiddenWindows(true)
+    for hWnd in paused.Clone()
+        if !WinExist("ahk_id " hWnd)
+            paused.Delete(hWnd)
+}
+
+Refresh() {
+    DetectHiddenWindows(true)
+    PrunePaused()
+    scriptList := []
+    for script in WinGetList("ahk_class AutoHotkey") {
+        try {
+            title := WinGetTitle("ahk_id " script)
+            ; El launcher del UX de AutoHotkey no es un script propio; ver
+            ; AuxLaunchCmd() por qué igual no debería aparecer ninguno acá.
+            if InStr(title, "\UX\launcher.ahk - AutoHotkey")
+                continue
+            SplitPath(title, &scriptName)
+            if !(scriptName ~= "\.exe$") {
+                paused := IsPaused(script)
+                suspended := IsSuspended(script)
+
+                if (paused && suspended)
+                    state := "[Paused+Suspended]"
+                else if (paused)
+                    state := "[Paused]"
+                else if (suspended)
+                    state := "[Suspended]"
+                else
+                    state := "[Running]"
+
+                scriptList.Push(scriptName " " state " (" script ")")
+            }
+        } catch {
+            continue
+        }
+    }
+    Scripts.Delete()
+    Scripts.Add(scriptList)
+    DetectHiddenWindows(false)
+}
+
+GetSelectedScriptInfo() {
+    if (selectedItem := Scripts.Text) {
+        scriptID := RegExReplace(selectedItem, ".*\((\d+)\).*", "$1")
+        DetectHiddenWindows(true)
+        winTitle := WinGetTitle("ahk_id " scriptID)
+        DetectHiddenWindows(false)
+        scriptPath := RegExReplace(winTitle, " - AutoHotkey v[^\s]+$")
+        return { path: scriptPath, id: scriptID }
+    }
+    return false
+}
+
+EditScript() {
+    if (scriptInfo := GetSelectedScriptInfo()) {
+        if FileExist(scriptInfo.path) {
+            if FileExist(VSCodePath) {
+                Run(VSCodePath ' "' scriptInfo.path '"')
+            } else {
+                MsgBox("VS Code not found at the specified path. Please update the VSCodePath variable.")
+            }
+        } else {
+            MsgBox("Unable to find the script file at path: " scriptInfo.path)
+        }
+    } else {
+        MsgBox("Please select a script to edit.")
+    }
+    Refresh()
+}
+
+; Launches the simple Macro.Recorder.exe (laptop personal) as its own process —
+; it must stay separate, because while recording it registers a hotkey for
+; every virtual key and would collide with this script's own bindings.
+; F1 is its only key (record / stop / play). Also bound to Win+F3.
+#F3::OpenMacroRecorder()
+
+OpenMacroRecorder() {
+    macroRecorderPath := A_ScriptDir "\Macro.Recorder.exe"
+    if !FileExist(macroRecorderPath) {
+        MsgBox("Unable to find Macro.Recorder.exe at: " macroRecorderPath)
+        return
+    }
+    Run('"' macroRecorderPath '"')
+}
+
+; Actions target the exact window handle the list row was built from. Resolving
+; by title instead (SetTitleMatchMode 2 + WinExist) returns the FIRST window
+; whose title matches, so with two instances of one script running under
+; #SingleInstance Off every action landed on instance #1: "Kill All" left the
+; second one alive and "Pause All" toggled the first one twice.
+PostToScript(hWnd, message) {
+    DetectHiddenWindows(true)
+    try {
+        PostMessage(0x111, message, 0, , "ahk_id " hWnd)
+    } catch {
+        return false
+    }
+    return true
+}
+
+; Killing is asynchronous (PostMessage), so the script's window is still
+; listed for a moment after the exit message is sent. Wait for it to go
+; away before refreshing, otherwise the dead script reappears in the list.
+WaitScriptClosed(hWnd, timeout := 3) {
+    DetectHiddenWindows(true)
+    WinWaitClose("ahk_id " hWnd, , timeout)
+    DetectHiddenWindows(false)
+}
+
+ReloadScript() {
+    if (scriptInfo := GetSelectedScriptInfo()) {
+        if PostToScript(scriptInfo.id, 65400)
+            ClearPaused(scriptInfo.id)
+    }
+    Refresh()
+}
+
+SuspendScript() {
+    if (scriptInfo := GetSelectedScriptInfo()) {
+        PostToScript(scriptInfo.id, 65404)
+    }
+    Refresh()
+}
+
+PauseScript() {
+    if (scriptInfo := GetSelectedScriptInfo()) {
+        if PostToScript(scriptInfo.id, 65403)
+            TogglePaused(scriptInfo.id)
+    }
+    Refresh()
+}
+
+ExitScript() {
+    if (scriptInfo := GetSelectedScriptInfo()) {
+        if PostToScript(scriptInfo.id, 65405)
+            WaitScriptClosed(scriptInfo.id)
+    }
+    Refresh()
+}
+
+ManageAllScripts(action) {
+    DetectHiddenWindows(true)
+    killed := []
+    for script in WinGetList("ahk_class AutoHotkey") {
+        winTitle := WinGetTitle("ahk_id " script)
+        scriptPath := RegExReplace(winTitle, " - AutoHotkey v[^\s]+$")
+        if (A_ScriptFullPath != scriptPath) {
+            switch action {
+                case "Reload":
+                    if PostToScript(script, 65400)
+                        ClearPaused(script)
+                case "Suspend": PostToScript(script, 65404)
+                case "Pause":
+                    if PostToScript(script, 65403)
+                        TogglePaused(script)
+                case "Kill":
+                    if PostToScript(script, 65405)
+                        killed.Push(script)
+            }
+        }
+    }
+    for hWnd in killed
+        WinWaitClose("ahk_id " hWnd, , 3)
+    DetectHiddenWindows(false)
+    Refresh()
+}
+
+; ============================================================================
+; ^RUN_starters.ahk  (programas externos lanzados al iniciar)
+;   En la laptop personal no se lanza nada extra (en work: RBTray y Wise
+;   Reminder). Win+Z / Win+| siguen abriendo Wise Reminder bajo demanda.
+; ============================================================================
+
+; ============================================================================
+; Scripts auxiliares  (lo último del arranque: ver el bloque "Lanzador de
+; scripts auxiliares" más arriba)
+; ============================================================================
+AuxStartup()
+
+; ----
+; Pruebas Manuales de hotkeys (decidir luego si eliminar)
+; ----
+
+#ñ::Run "http://youtube.com"

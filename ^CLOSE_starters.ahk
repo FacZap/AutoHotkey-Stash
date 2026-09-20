@@ -28,7 +28,7 @@ fullScriptPath = C:\autohotkey\dashes.ahk  ; edit with your full script path
 DetectHiddenWindows, On
 WinClose, %fullScriptPath% ahk_class AutoHotkey
 
-fullScriptPath = C:\autohotkey\gui.ahk  ; edit with your full script path
+fullScriptPath = C:\autohotkey\calendar.ahk  ; edit with your full script path
 
 DetectHiddenWindows, On
 WinClose, %fullScriptPath% ahk_class AutoHotkey
@@ -81,5 +81,20 @@ WinClose, %fullScriptPath% ahk_class AutoHotkey
 
 fullScriptPath = C:\autohotkey\open_hourglass.ahk  ; edit with your full script path
 
+DetectHiddenWindows, On
+WinClose, %fullScriptPath% ahk_class AutoHotkey
+
+
+fullScriptPath = C:\autohotkey\Cycler_Windows_v3.ahk  ; edit with your full script path
+
+DetectHiddenWindows, On
+WinClose, %fullScriptPath% ahk_class AutoHotkey
+
+
+fullScriptPath = C:\autohotkey\Show_Time.ahk
+DetectHiddenWindows, On
+WinClose, %fullScriptPath% ahk_class AutoHotkey
+
+fullScriptPath = C:\autohotkey\url_chrome.ahk
 DetectHiddenWindows, On
 WinClose, %fullScriptPath% ahk_class AutoHotkey

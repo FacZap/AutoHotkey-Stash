@@ -1,78 +1,155 @@
 # CLAUDE.md
 
-Guidance for working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What this is
+This is the **personal-laptop** branch (`personal_v2_merged`) of
+`FacZap/AutoHotkey-Stash`: the unified v2 master from the `workMacroRecorder`
+branch, adapted to this machine, plus the personal laptop's own peripheral
+scripts. What came from where and what was dropped is in `MERGE_NOTES.md`.
+The live copy on the laptop lives at `C:\Users\fzpat\Desktop\ahk`.
 
-A personal collection of **AutoHotkey (AHK)** scripts for Windows productivity:
-global hotkeys, hotstrings (autotext), media/volume/brightness control, window
-management, auto-clicking, timers, and small GUIs. It is not an application —
-each `.ahk` file is a standalone script run by the AutoHotkey interpreter. There
-is no build step, no tests, and no git repository.
+Comments and UI strings are mostly in **Spanish**; match that when editing.
 
-Comments and UI strings are mostly in **Spanish**; match that when editing
-existing files.
+## Running Scripts
+
+AutoHotkey scripts are run directly — there is no build step. The laptop has
+AHK v1.1.37 and v2.0.19 installed side by side (the `.ahk` association goes
+through the AutoHotkey UX launcher, which picks the version from `#Requires`).
+
+```powershell
+# Run the master (v2)
+& "$env:LOCALAPPDATA\Programs\AutoHotkey\v2\AutoHotkey64.exe" ".\^^AHK_Unified_Master.ahk"
+
+# Syntax-check without running (catches duplicate hotkeys, bad key names, includes)
+& "$env:LOCALAPPDATA\Programs\AutoHotkey\v2\AutoHotkey64.exe" /ErrorStdOut /validate ".\^^AHK_Unified_Master.ahk"
+```
+
+To test a modified script: terminate the running instance, then launch the
+updated file. `Ctrl+Alt+R` opens the Manager GUI embedded in the master
+(Reload/Suspend/Pause/Kill for any running AHK process).
 
 ## AHK v1 vs v2 — check before editing
 
-The repo mixes both major AutoHotkey versions, which have **incompatible
-syntax**. Always confirm a file's version before editing:
+The repo mixes both versions, which have **incompatible syntax**. v2 files start
+with `#Requires AutoHotkey v2...` (function-call syntax, `&ref`, fat arrows); v1
+files have no `#Requires` and use command syntax (`Send, ...`, `%var%`,
+`Gosub`). Never mix idioms — use the syntax the file already has. v1 and v2
+cannot share a process, which is why the peripherals below stay separate.
 
-- **v2** files start with `#Requires AutoHotkey v2...`. They use function-call
-  syntax (`Send("...")`, `MyGui := Gui()`, `WinGetTitle("ahk_id " id)`),
-  `&ref` output params, and fat-arrow callbacks. Examples:
-  `ahk_STARTUP/AHK_Manager.ahk`, `new_txt.ahk`, `url_firefox.ahk`,
-  `Macro.Recorder.ahk`.
-- **v1** files have no `#Requires` (or require v1) and use command syntax
-  (`Send, ...`, `Gui, Add, ...`, `WinGetTitle, out, ...`), `%var%` expansion,
-  and `Gosub`/labels. Most root scripts and `ahk_STARTUP/!_STARTUP.ahk` are v1.
+## Architecture
 
-Do not introduce v2 idioms into a v1 file or vice versa — pick the syntax the
-file already uses.
+### Primary entry point
+
+`^^AHK_Unified_Master.ahk` (v2.0.18+) is the consolidated always-on script. It
+replaces both the work starter chain and the personal
+`ahk_STARTUP/!_STARTUP.ahk` (v1), which is kept only as a fallback — do not run
+both at once, their hotkeys overlap.
+
+It `#Include`s `ahk_STARTUP/!_personal.ahk` (optional, `*i`): private hotstrings
+(`kfz`, `kdni`, `kcel`, …). Do not duplicate those hotstrings in the master
+(v2 refuses to load with duplicates) and do not invent or print their contents.
+
+### Personal-laptop adaptations inside the master
+
+- **Firefox, not Chrome**: `Ctrl+Alt+G` / `Ctrl+Alt+Shift+G` open the sheet in
+  Firefox; `kill_all` (`Ctrl+Shift+Alt+K`) also spares `firefox.exe`;
+  `find_google_calendar.ini` and `KillBrowsers/kill_preferences.ini` default to
+  Firefox; `Ctrl+Shift+A` inside Firefox types `@tabs `. Tab features that read
+  titles via UIA need Firefox accessibility enabled.
+- **Brightness**: `RAlt & PgDn` = +10, `RAlt & PgUp` = −10 (same direction as
+  the old `ahk_STARTUP/Brightness.ahk`), plus work's `Win+,` / `Win+.` (±5).
+  All go through `AdjustScreenBrightness()` (WMI).
+- **Macro recorder**: the *simple* one. `Win+F3` and the Manager's
+  `Macro Recorder` button launch `Macro.Recorder.exe` (source:
+  `Macro.Recorder.ahk`, v2; `F1` records/stops/plays). Work's big
+  `MacroRecorder.ahk` was intentionally not brought over.
+- **Section "Atajos de la laptop personal"**: hotkeys ported from the old
+  `!_STARTUP.ahk` that did not collide with work's (AltGr+Numpad media,
+  `AltGr+{`/`AltGr+-` max/min, `Alt+F9` Matlab, `Ctrl+Alt+D` PDF fix,
+  extra date hotstrings, …). `Win+|` / `Win+Shift+|` are aliases of the Wise
+  Reminder / Hourglass launchers.
+- `Win+C` (Show_Time) uses **7** Right presses (5 on the work PC).
+- Nothing external is launched at startup (work launched RBTray + Wise Reminder).
+
+### Hotkey registry and reference docs — keep in sync
+
+`gHKSections` in the master lists every hotkey for the `Hotkeys…` toggle menu.
+Every `hk` must match the real hotkey string exactly. Hotkeys defined inside a
+`#HotIf` can't be toggled with `Hotkey()`, so they use `type: "flag"` and read
+`HKEnabled("section.item")` in their `#HotIf` (e.g. `firefox.tabs`).
+
+The same bindings are documented in:
+
+| File | Role |
+|---|---|
+| `AHK_Unified_Master_Referencia_ie.html` | What `Win+Shift+?` opens. Plain CSS (IE engine). |
+| `AHK_Unified_Master_Referencia.html` | Same content, modern CSS; source of the PDF. |
+| `AHK_Unified_Master_Referencia.pdf` | Printed from the modern HTML. |
+
+The two HTMLs must be edited together. Regenerate the PDF with:
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless=new --disable-gpu --no-pdf-header-footer --virtual-time-budget=8000 "--print-to-pdf=$PWD\AHK_Unified_Master_Referencia.pdf" "file:///$($PWD -replace '\\','/')/AHK_Unified_Master_Referencia.html"
+```
+
+### Auxiliary script launcher
+
+On startup the master opens `ShowAuxScriptsGui()` to pick which separate
+scripts to launch (also from the Manager's `Aux Scripts…`). `aux-scripts.ini`
+(gitignored, per machine) stores the ticks and the startup mode (`ask` | `auto`
+| `off`).
+
+| Script | v | Notes |
+|---|---|---|
+| `traymond-timer/traymond-timer.ahk` | v1 | `Win+Shift+Z` hide + countdown. Needs `Traymond.exe` running (the laptop starts it from the Startup folder). |
+| `traymond-timer/restore-at-fixed-time.ahk` | v1 | Daily 16:40 restore-all (work schedule; untick if unwanted). |
+| `ClipboardOCR.ahk` | v2 | `Ctrl+Alt+O`; depends on vendored `OCR.ahk`. |
+| `ColdTurkeyActivado.ahk` | v2 | No hotkeys. |
+| `GreenshotSlowMouse.ahk` | v2 | No hotkeys. |
+| `KillBrowsers/KillBrowsers.ahk` | v2 | `Ctrl+Alt+K`. |
+| `SimpleReminders/SimpleReminders.ahk` | v2 | `Win+Alt+Z`. |
+| `RhythmGame.ahk` | v2 | Window-scoped keys only. |
+
+Launching goes through the UX launcher with `/Launch` (see `AuxLaunchCmd()`);
+`A_AhkPath` can't be used because it is the v2 exe running the master.
+
+### Window cycler (windows + browser tabs)
+
+One list for windows and tabs (`Win+F4` cycles, `Ctrl+Win+F4` filters). Tab
+entries reuse the timed-tab UIA helpers (`GetActiveBrowserTabName`,
+`NormalizeTabName`, `FindTimedTabTarget`, `ActivateTimedTab`); changing them
+affects both features. `CleanClosedWindows()` prunes only window entries.
+
+## Personal peripheral scripts (standalone, mostly v1)
+
+Kept as-is at the root; they are **not** part of the master and are run by hand:
+`batt-limit-alpha.ahk`, `auto_coolboost*.ahk`, `coolbooster.ahk`, `tabby*.ahk`,
+`vlc.ahk`, `AutoClicker_CtrlAltJ.ahk`, `ScrollBoost.ahk`, `emoji.ahk`, etc.
+Known collisions with the master (don't run them together):
+`coolbooster.ahk` (`^!w` = master's Ctrl+Alt+W), `FF_ctrlA.ahk` (`^!a` =
+Play/Pausa), `ahk_STARTUP/AltWindowsControl.ahk` and
+`ahk_STARTUP/Cycler-Window-v3.ahk` (duplicate master features).
 
 ## Layout
 
-- **Root `*.ahk`** — individual standalone scripts (one feature each), e.g.
-  `AutoClicker_CtrlAltJ.ahk`, `ScrollBoost.ahk`, `auto_coolboost*.ahk`,
-  `tabby*.ahk` (tab-cycling variants), `ctrl_modifier*.ahk`.
-- **`ahk_STARTUP/`** — scripts intended to run at login.
-  - `!_STARTUP.ahk` is the **main always-on script**: media keys, date/time
-    hotstrings (`SendNow()`), case-conversion clipboard helpers, the calendar
-    GUI (`Win+Numpad5`), the conversation counter, and the `Win+Alt+S` timer.
-    It `#Include`s `!_personal.ahk` (optional, gitignore-worthy: holds private
-    data like emails/IDs — do not commit or invent its contents).
-  - `AHK_Manager.ahk` (v2) — a GUI to reload/suspend/pause/kill running AHK
-    scripts; launched via `run_Manager.ahk` (`Ctrl+Alt+R`).
-  - `!_contained/` — smaller single-purpose scripts, some superseded by
-    `!_STARTUP.ahk`.
-- **`ahk_NO/`** — scripts currently **not in use** (disabled/archived). Don't
-  assume these are active.
-- **`autohotkey 26-08-24 iea/`** — an older snapshot of many small v1 scripts.
-- **`^RUN_starters.ahk` / `^CLOSE_starters.ahk`** — batch launch/close helpers
-  that reference scripts by hardcoded `C:\autohotkey\...` paths (an older
-  location, not this folder).
-- **Bundled third-party tools** (treat as vendored, do not edit):
-  `keypirinha-2.26-full-portable/` (launcher), `RBTray/` (minimize-to-tray),
+- Root: the master, its aux scripts, work's individual scripts (reference
+  copies of what the master contains), and the personal peripherals.
+- `ahk_STARTUP/` — the old personal v1 startup set (`!_STARTUP.ahk`,
+  `AHK_Manager.ahk`, `Brightness.ahk`, …) plus `!_personal.ahk`, which the
+  master includes.
+- `ahk_NO/`, `not in use/`, `semi-uso/`, `broken/`, `autohotkey 26-08-24 iea/`
+  — archived / not active.
+- Vendored (don't edit): `keypirinha-2.26-full-portable/`, `RBTray/`,
+  `RBTray-4_3/`, `ahk2_lib/`, `UIA.ahk`, `OCR.ahk`, `Traymond.exe`,
   `Macro.Recorder.exe`, `emoji.exe`.
-- `relevamiento_ahk.txt` — the author's working notes / inventory of hotkeys.
-- `Atajos_AHK_cheatsheet.html` — a generated cheat-sheet of shortcuts.
+- `^RUN_starters.ahk` / `^CLOSE_starters.ahk` / `^RUN_MANAGER.ahk` — legacy
+  launchers with `C:\autohotkey\...` paths (work PC); superseded by the master.
 
-## Running / testing a script
+## Hardcoded paths
 
-There is no automated test harness — scripts are verified by running them and
-pressing the hotkeys. To run one, the AutoHotkey interpreter must be installed;
-launch a script by double-clicking it or via `Run "path\to\script.ahk"`. Use the
-correct interpreter version for the file (v1 vs v2). `AHK_Manager.ahk` is the
-quickest way to reload/kill running scripts during iteration.
-
-## Conventions
-
-- One concern per script in the root; `!_STARTUP.ahk` is the exception (an
-  aggregation of many always-on hotkeys, organized into `; ===` comment
-  sections — keep that sectioned structure when adding to it).
-- v1 hotstrings here use prefixes like `k...` for dates and `:R*?:` / `:X*?:`
-  option flags; follow the existing naming when adding autotext.
-- User-facing feedback is shown with `ToolTip` plus a self-clearing timer
-  (`QuitarTooltip`); reuse that pattern rather than `MsgBox` for transient notices.
-- Hardcoded absolute paths under `C:\Users\fzpat\...` are common; preserve the
-  user's actual paths when editing.
+- Firefox: `C:\Program Files\Mozilla Firefox\firefox.exe`
+- VS Code: `C:\Users\<user>\AppData\Local\Programs\Microsoft VS Code\Code.exe`
+- Wise Reminder: `C:\Program Files (x86)\Wise\Wise Reminder\WiseReminder.exe`
+- Hourglass: Start-menu shortcut under `C:\ProgramData\...\Hourglass\`
+- `open-program-GUI.ini` overrides per-program paths (OBS and Pointofix are not
+  installed on the laptop; edit their path from the GUI if needed).

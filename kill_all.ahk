@@ -1,7 +1,7 @@
 ﻿#NoTrayIcon
 #Persistent
 
-^+!k:: ; Ctrl + Shift + Alt + K to trigger
+^+!k:: ; Press Ctrl + Shift + Alt + K to activate
 WinGet, idList, List
 Loop, % idList {
     this_id := idList%A_Index%

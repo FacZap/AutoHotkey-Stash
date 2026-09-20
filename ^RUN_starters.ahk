@@ -1,21 +1,29 @@
-﻿Run arrows-keystrokes.ahk
-Run autodate.ahk
-Run backwards-slash.ahk
-Run brightness.ahk
-Run checkmark.ahk
-Run dashes.ahk
-Run gui.ahk
-Run logger.ahk
-Run move_resize.ahk
-Run mute.ahk
-Run pauseplay.ahk
-Run right_tab.ahk
-Run selectcellcontent.ahk
-Run volume.ahk
-Run macro_insta_name.ahk
-Run find_wise_reminder.ahk
-Run open_hourglass.ahk
+﻿Run "C:\autohotkey\arrows-keystrokes.ahk"
+Run "C:\autohotkey\autodate.ahk"
+Run "C:\autohotkey\backwards-slash.ahk"
+Run "C:\autohotkey\brightness.ahk"
+Run "C:\autohotkey\checkmark.ahk"
+Run "C:\autohotkey\dashes.ahk"
+Run "C:\autohotkey\calendar.ahk"
+Run "C:\autohotkey\logger.ahk"
+Run "C:\autohotkey\move_resize.ahk"
+Run "C:\autohotkey\mute.ahk"
+Run "C:\autohotkey\pauseplay.ahk"
+Run "C:\autohotkey\right_tab.ahk"
+Run "C:\autohotkey\selectcellcontent.ahk"
+Run "C:\autohotkey\volume.ahk"
+Run "C:\autohotkey\macro_insta_name.ahk"
+Run "C:\autohotkey\find_wise_reminder.ahk"
+Run "C:\autohotkey\open_hourglass.ahk"
+Run "C:\autohotkey\kill_all.ahk"
+Run "C:\autohotkey\Show_Time.ahk"
+Run "C:\autohotkey\Cycler_Windows_v3.ahk"
+Run "C:\autohotkey\url_chrome.ahk"
+Run "C:\autohotkey\convCount.ahk"
+Run "C:\autohotkey\createTXT.ahk"
+Run "C:\autohotkey\resize.ahk"
+
 Sleep 200
-Run "C:\autohotkey\RBTray-4_3\RBTRAY_64bit\RBTray.exe"
-Run "C:\Users\Public\Desktop\Wise Reminder.lnk"
+Run "C:\autohotkey\RBTray-4_3\64bit\RBTray.exe"
+Run "C:\Users\fzapata\Desktop\Wise Reminder.lnk"
 

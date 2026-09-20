@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>AHK_Unified_Master.ahk — Referencia de comandos</title>
+<!--
+  COPIA IE-COMPATIBLE de AHK_Unified_Master_Referencia.html
+  El control web embebido de AHK (ActiveX Shell.Explorer) usa el motor Trident
+  (Internet Explorer), que NO soporta variables CSS (var(--x)). Por eso esta copia
+  tiene los valores hex resueltos inline. Si editás el HTML original, replicá el
+  cambio acá (o regenerá este archivo). El popup se abre con Win+Shift+?.
+-->
+<style>
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:92px 24px 80px; background:#1b1d22; color:#e8e9ee;
+    font-family:Segoe UI, Calibri, system-ui, sans-serif; line-height:1.5;
+  }
+  /* --- Barra de filtro (fija arriba) --- */
+  .toolbar{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    background:#16181c; border-bottom:1px solid #33363f;
+    padding:12px 24px; box-shadow:0 2px 12px rgba(0,0,0,0.45);
+  }
+  .toolbar .inner{max-width:980px; margin:0 auto; display:flex; align-items:center; flex-wrap:wrap;}
+  .toolbar .inner > *{margin:3px 6px 3px 0;}
+  #filterInput{
+    flex:1 1 240px; min-width:180px; background:#23262d; color:#e8e9ee;
+    border:1px solid #444a5a; border-radius:8px; padding:9px 12px;
+    font-family:Segoe UI, Calibri, sans-serif; font-size:0.95rem; outline:none;
+  }
+  #filterInput:focus{border-color:#c47cff;}
+  .chip{
+    background:#2d3140; color:#cfd3dd; border:1px solid #444a5a; border-radius:999px;
+    padding:5px 12px; font-size:0.8rem; cursor:pointer; font-family:Consolas, monospace;
+  }
+  .chip:hover{background:#3a3f52; color:#fff;}
+  #clearBtn{
+    background:transparent; color:#9aa0ad; border:1px solid #444a5a; border-radius:999px;
+    padding:5px 12px; font-size:0.8rem; cursor:pointer;
+  }
+  #clearBtn:hover{color:#fff; border-color:#c47cff;}
+  #hitCount{color:#9aa0ad; font-size:0.8rem; white-space:nowrap;}
+  #noResults{display:none; color:#9aa0ad; text-align:center; padding:40px 20px; font-size:0.95rem;}
+  .wrap{max-width:980px; margin:0 auto;}
+  h1{font-size:1.9rem; margin:0 0 4px; color:#c47cff;}
+  .subtitle{color:#9aa0ad; margin:0 0 28px; font-size:0.95rem;}
+  .note{
+    background:#2a2330; border:1px solid #4a3a5c; border-radius:10px;
+    padding:14px 18px; margin-bottom:32px; font-size:0.9rem; color:#dcc9f7;
+  }
+  .note b{color:#fff;}
+  h2{
+    font-size:1.15rem; margin:40px 0 14px; color:#5fd0ff;
+    border-bottom:1px solid #33363f; padding-bottom:8px;
+  }
+  h2 .src{
+    font-size:0.75rem; color:#9aa0ad; font-weight:normal; margin-left:8px;
+  }
+  table{width:100%; border-collapse:collapse; background:#23262d; border-radius:10px; overflow:hidden;}
+  th,td{padding:10px 14px; text-align:left; border-bottom:1px solid #33363f; vertical-align:top;}
+  th{background:#1f2127; color:#9aa0ad; font-weight:600; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#272a32;}
+  .key{
+    display:inline-block; background:#2d3140; border:1px solid #444a5a; border-radius:6px;
+    padding:3px 9px; font-family:Consolas, monospace; font-size:0.85rem; color:#fff; white-space:nowrap;
+  }
+  .desc{color:#e8e9ee;}
+  .scope{color:#9aa0ad; font-size:0.82rem;}
+  .pill{
+    display:inline-block; font-size:0.7rem; padding:2px 8px; border-radius:999px;
+    background:#33415a; color:#9fd2ff; margin-left:6px; vertical-align:middle;
+  }
+  .pill.gui{background:#3a3052; color:#c47cff;}
+  .pill.hold{background:#3a4a30; color:#bdf08a;}
+  .pill.aux{background:#4a3a1e; color:#ffd28a;}
+  .scope.nohk{white-space:nowrap;}
+  .note.aux{background:#2b2620; border-color:#5c4a32; color:#f3dcc0;}
+  h2.auxhead{color:#ffd28a; border-bottom-width:2px;}
+  @media print{
+    /* Conservar el tema oscuro al imprimir / exportar a PDF. */
+    body{-webkit-print-color-adjust:exact; print-color-adjust:exact;
+         padding:0; font-size:10.5pt;}
+    .searchbar, .chips, #noResults, #hitCount{display:none !important;}
+    h2{break-after:avoid; page-break-after:avoid;}
+    tr{break-inside:avoid; page-break-inside:avoid;}
+    table{break-inside:auto;}
+    .note{break-inside:avoid;}
+  }
+  footer{margin-top:50px; color:#9aa0ad; font-size:0.8rem; text-align:center;}
+  code.inline{background:#2d3140; padding:1px 6px; border-radius:4px; font-size:0.85em;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="inner">
+    <input id="filterInput" type="text" placeholder="Filtrar por hotkey…  (ej. Win, Ctrl, Numpad, F5)" autocomplete="off">
+    <span class="chip" data-q="Win">Win</span>
+    <span class="chip" data-q="Ctrl">Ctrl</span>
+    <span class="chip" data-q="Alt">Alt</span>
+    <span class="chip" data-q="Shift">Shift</span>
+    <span class="chip" data-q="Numpad">Numpad</span>
+    <button id="clearBtn" type="button">Limpiar</button>
+    <span id="hitCount"></span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <h1>AHK_Unified_Master.ahk</h1>
+  <p class="subtitle">Referencia completa de hotkeys, hotstrings y funcionalidades — generada 100% a partir del contenido real del archivo unificado.</p>
+
+  <div class="note">
+    <b>Cómo leer esto:</b> cada sección corresponde a un bloque del script (identificado con comentarios <code class="inline">; ====</code> dentro del .ahk, con el nombre del script original del que proviene). El <span class="pill hold">mantener presionado</span> indica una acción que se repite mientras se mantiene el botón del mouse. El <span class="pill gui">ventana</span> indica que abre una interfaz gráfica. El <span class="pill aux">aux</span> marca el apéndice del final: scripts que corren como procesos aparte del master, cuyos hotkeys existen solo mientras ese script esté corriendo.
+  </div>
+
+  <h2>Ayuda / esta referencia <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Shift + ?</span></td><td class="desc">Abre/cierra esta ventana de referencia flotante (siempre al frente, no aparece en la barra de tareas). <code class="inline">Esc</code> la cierra.</td></tr>
+  </table>
+
+  <h2>Teclado y navegación <span class="src">arrows-keystrokes.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + W</span></td><td class="desc">Envía la tecla <code class="inline">Flecha Arriba</code>.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + S</span></td><td class="desc">Envía la tecla <code class="inline">Flecha Abajo</code>.</td></tr>
+    <tr><td><span class="key">Ctrl izquierdo + Bloq Mayús</span></td><td class="desc">Envía la tecla <code class="inline">Enter</code> (anula el toggle de Bloq Mayús mientras se mantiene Ctrl izquierdo).</td></tr>
+    <tr><td><span class="key">Shift + Supr</span></td><td class="desc">Envía la tecla <code class="inline">Backspace</code>. Ojo: pisa el <em>borrado permanente</em> de Windows, así que Shift+Supr en el Explorador ya no saltea la papelera de reciclaje.</td></tr>
+  </table>
+
+  <h2>Fechas y horas rápidas (hotstrings) <span class="src">autodate.ahk</span></h2>
+  <table>
+    <tr><th>Texto disparador</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">kddd</span></td><td class="desc">Reemplaza el texto por la fecha actual en formato <code class="inline">dd/MM/yy</code>.</td></tr>
+    <tr><td><span class="key">ksss</span></td><td class="desc">Inserta la fecha actual en formato <code class="inline">dd/MM</code>.</td></tr>
+    <tr><td><span class="key">knnn</span></td><td class="desc">Inserta el nombre del día actual completo (ej. "lunes").</td></tr>
+    <tr><td><span class="key">kxxx</span></td><td class="desc">Inserta fecha y hora en formato <code class="inline">yyMMdd_HHmm</code> (útil para nombres de archivo).</td></tr>
+    <tr><td><span class="key">kaaa</span></td><td class="desc">Inserta la fecha actual en formato <code class="inline">yyMMdd</code>.</td></tr>
+    <tr><td><span class="key">kjjd</span></td><td class="desc">Inserta la fecha actual en formato <code class="inline">dd-MM-yy</code>.</td></tr>
+    <tr><td><span class="key">kyyy</span></td><td class="desc">Inserta fecha y hora en formato <code class="inline">dd-MM-yy HH:mm</code>.</td></tr>
+    <tr><td><span class="key">khhh</span></td><td class="desc">Inserta la hora actual en formato <code class="inline">HH:mm</code>.</td></tr>
+  </table>
+  <p class="scope">Todas se activan escribiendo el texto disparador en cualquier campo (modo "raw", sin necesidad de carácter final).</p>
+
+  <h2>Correos rápidos (hotstrings) <span class="src">ahk_STARTUP\!_personal.ahk</span></h2>
+  <table>
+    <tr><th>Texto disparador</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">kfz</span></td><td class="desc">Escribe el mail definido en <code class="inline">ahk_STARTUP\!_personal.ahk</code> (junto con el resto de los datos personales: kmail2, khmail, kleg, kcel, kdni, …). A diferencia de los <code class="inline">k...</code> de fechas, este dispara al terminar la palabra (hace falta un espacio, Enter o signo de puntuación después).</td></tr>
+    <tr><td><span class="key">kzf</span></td><td class="desc">Escribe <code class="inline">zapatafacundo17@gmail.com</code>, con el mismo comportamiento.</td></tr>
+  </table>
+
+  <h2>Texto rápido (chord) <span class="src">^^AHK_Unified_Master.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + 5</span>, luego <span class="key">E</span> <span class="scope">(dentro de 2&nbsp;s)</span></td><td class="desc">Escribe el texto literal <code class="inline">%%end flag</code>. Presioná <code class="inline">Ctrl+Alt+5</code> y, dentro de 2 segundos, la tecla <code class="inline">E</code>; si la E llega a tiempo se inserta el texto (si no, la secuencia se cancela sola).</td></tr>
+  </table>
+
+  <h2>Símbolos rápidos <span class="src">backwards-slash.ahk · checkmark.ahk · dashes.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Shift + Numpad /</span></td><td class="desc">Envía el carácter <code class="inline">\</code> (barra invertida).</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + F10</span></td><td class="desc">Envía el símbolo de check <code class="inline">✔</code>.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + F9</span></td><td class="desc">Envía el símbolo de flecha arriba <code class="inline">↑</code>.</td></tr>
+    <tr><td><span class="key">Ctrl + Numpad .</span></td><td class="desc">Envía un punto y coma <code class="inline">;</code>.</td></tr>
+    <tr><td><span class="key">Alt + Numpad .</span></td><td class="desc">Envía un "dos puntos" <code class="inline">:</code>.</td></tr>
+    <tr><td><span class="key">Ctrl + Numpad -</span></td><td class="desc">Envía un guion largo <code class="inline">—</code> (em dash).</td></tr>
+    <tr><td><span class="key">Alt + Numpad -</span></td><td class="desc">Envía un guion medio <code class="inline">–</code> (en dash).</td></tr>
+  </table>
+
+  <h2>Brillo de pantalla <span class="src">brightness.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + ,</span></td><td class="desc">Reduce el brillo de pantalla en 5 puntos (mínimo 10). Muestra el indicador visual nativo de Windows.</td></tr>
+    <tr><td><span class="key">Win + .</span></td><td class="desc">Aumenta el brillo de pantalla en 5 puntos (máximo 100). Muestra el indicador visual nativo de Windows.</td></tr>
+    <tr><td><span class="key">AltGr + AvPág</span></td><td class="desc">Aumenta el brillo en 10 puntos (máximo 100), con el mismo indicador.</td></tr>
+    <tr><td><span class="key">AltGr + RePág</span></td><td class="desc">Reduce el brillo en 10 puntos (mínimo 10), con el mismo indicador.</td></tr>
+  </table>
+
+  <h2>Calendario emergente <span class="src">calendar.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Numpad 5</span></td><td class="desc">Abre una mini ventana con un calendario. Seleccionás una fecha y presionás "Copiar" (o Enter) para copiarla al portapapeles en formato <code class="inline">dd/MM/yyyy</code>; "Cancelar" (o Esc) cierra sin copiar.</td></tr>
+  </table>
+
+  <h2>Registro de texto / log <span class="src">logger.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + F7</span></td><td class="desc">Escribe un separador de líneas, la fecha/hora actual (<code class="inline">yy/MM/dd HH:mm:ss</code>) y otro separador — útil para marcar entradas en un log de texto.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + L</span></td><td class="desc">Espera hasta 2 segundos una tecla: si presionás <code class="inline">1</code> escribe un separador corto; si presionás <code class="inline">2</code> escribe un separador largo con espacio previo; cualquier otra tecla (o el timeout) cancela sin escribir nada.</td></tr>
+  </table>
+
+  <h2>Mover y redimensionar ventanas con el mouse <span class="src">move_resize.ahk</span> <span class="pill hold">mantener presionado</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Alt + Click izquierdo (mantener)</span></td><td class="desc">Mientras se mantiene presionado, arrastra la ventana bajo el cursor siguiendo el movimiento del mouse.</td></tr>
+    <tr><td><span class="key">Alt + Click derecho (mantener)</span></td><td class="desc">Redimensiona la ventana bajo el cursor: el borde que se mueve (izquierda/derecha/arriba/abajo) depende de en qué cuadrante de la ventana se hizo clic inicialmente.</td></tr>
+  </table>
+
+  <h2>Silenciar audio <span class="src">mute.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Numpad 3</span></td><td class="desc">Si el audio no está muteado, lo mutea (si ya está muteado, no hace nada — no alterna).</td></tr>
+  </table>
+
+  <h2>Ocultar al escritorio por inactividad <span class="src">idle_edit_v2.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Numpad *</span></td><td class="desc">Abre un cuadro para fijar los minutos de inactividad física tras los cuales se oculta todo al escritorio (Win+D), restaurándose al primer input. <code class="inline">0</code> = desactivado. Por defecto arranca desactivado (0 min).</td></tr>
+  </table>
+
+  <h2>Timer → Win+Alt+S <span class="src">!_STARTUP_merged.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Alt + U</span>, luego <span class="key">I</span> <span class="scope">(dentro de 1&nbsp;s)</span></td><td class="desc">Abre una ventana para configurar un temporizador. El tiempo se tipea en un solo campo, con el mismo formato que Win + F6: <code class="inline">25</code> (minutos), <code class="inline">90m</code>, <code class="inline">2h</code>, <code class="inline">1h30</code>, <code class="inline">45s</code>, <code class="inline">@17:45</code> (hora de reloj &mdash; mañana si ya pasó) o <code class="inline">0</code> para cancelar el timer pendiente. Aparte va el umbral de auto-envío por inactividad, en minutos (<code class="inline">0</code> = desactivado). "Iniciar cuenta regresiva" arma el timer, "Solo inactividad" cambia únicamente ese umbral y "Cancelar" (o Esc) cierra. Recuerda el último tiempo tipeado.</td></tr>
+    <tr><td><span class="scope">(automático) al cumplirse la cuenta regresiva</span></td><td class="desc">Envía la combinación <code class="inline">Win+Alt+S</code> una vez, al agotarse el tiempo configurado.</td></tr>
+    <tr><td><span class="scope">(automático) por inactividad física</span></td><td class="desc">Si transcurren los minutos de inactividad configurados sin input físico del usuario, envía <code class="inline">Win+Alt+S</code> (una sola vez por período inactivo). Usa <code class="inline">A_TimeIdlePhysical</code>, por lo que ignora el input simulado por el propio script. <code class="inline">0</code> = desactivado.</td></tr>
+  </table>
+
+  <h2>Timer → Play/Pausa multimedia <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Alt + U</span>, luego <span class="key">A</span> <span class="scope">(dentro de 2&nbsp;s)</span></td><td class="desc">Abre una ventana para configurar un temporizador, con el mismo campo único y el mismo formato que Win + Alt + U &rarr; I y que Win + F6: <code class="inline">25</code> (minutos), <code class="inline">90m</code>, <code class="inline">2h</code>, <code class="inline">1h30</code>, <code class="inline">45s</code>, <code class="inline">@17:45</code> (hora de reloj &mdash; mañana si ya pasó). "Iniciar cuenta regresiva" arma el timer; "Cancelar" (o Esc) cierra sin tocar nada. Recuerda el último tiempo tipeado. Iniciar con <code class="inline">0</code> cancela el timer pendiente. La <span class="key">A</span> vale con o sin modificadores apretados, así que se puede seguir sosteniendo Win+Alt desde el acorde anterior. El mismo acorde acepta además <span class="key">F4</span> (una o dos veces) para los timers de cierre: ver <b>Ventanas y pestañas con timer</b>.</td></tr>
+    <tr><td><span class="scope">(automático) al cumplirse la cuenta regresiva</span></td><td class="desc">Envía la tecla multimedia <code class="inline">Media_Play_Pause</code> una vez, al agotarse el tiempo configurado — lo mismo que hace <span class="key">Ctrl + Alt + A</span> (ver <em>Multimedia y volumen</em>), así que sirve como temporizador para cortar la música.</td></tr>
+  </table>
+
+  <h2>Multimedia y volumen <span class="src">pauseplay.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + A</span></td><td class="desc">Play / Pausa de reproducción multimedia.</td></tr>
+    <tr><td><span class="key">AltGr + Numpad 5</span></td><td class="desc">Play / Pausa de reproducción multimedia.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Izquierda</span></td><td class="desc">Pista/canción anterior.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Derecha</span></td><td class="desc">Pista/canción siguiente.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 4</span></td><td class="desc">Pista/canción anterior.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 6</span></td><td class="desc">Pista/canción siguiente.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 3</span></td><td class="desc">Mute de volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad +</span></td><td class="desc">Sube el volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad -</span></td><td class="desc">Baja el volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 8</span></td><td class="desc">Sube el volumen.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Numpad 2</span></td><td class="desc">Baja el volumen.</td></tr>
+  </table>
+
+  <h2>Tabulación y selección <span class="src">right_tab.ahk · selectcellcontent.ahk · volume.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl derecho + Numpad 5</span></td><td class="desc">Envía la tecla <code class="inline">Tab</code>.</td></tr>
+    <tr><td><span class="key">Alt + F2</span></td><td class="desc">Envía Backspace seguido de Ctrl+Z (borra un carácter y deshace — pensado para limpiar contenido de una celda y revertir).</td></tr>
+    <tr><td><span class="key">Win + Rueda arriba</span></td><td class="desc">Sube el volumen.</td></tr>
+    <tr><td><span class="key">Win + Rueda abajo</span></td><td class="desc">Baja el volumen.</td></tr>
+  </table>
+
+  <h2>Convertir mayúsculas/minúsculas <span class="src">ConvertCase.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + F2</span></td><td class="desc">Copia el texto seleccionado (si no hay nada seleccionado, toma el del portapapeles) y abre una ventana con 25 estilos y el preview en vivo de cada uno. La lista está agrupada en <b>Texto</b> (minúsculas, MAYÚSCULAS, Tipo Título, Tipo oración, iNVERTIDO, recortar y colapsar espacios), <b>Código</b> (<code class="inline">camelCase</code>, <code class="inline">PascalCase</code>, <code class="inline">snake_case</code>, <code class="inline">SCREAMING_SNAKE_CASE</code>, <code class="inline">Ada_Case</code>, <code class="inline">kebab-case</code>, <code class="inline">Train-Case</code>, <code class="inline">COBOL-CASE</code>, <code class="inline">dot.case</code>, <code class="inline">path/case</code>, <code class="inline">flatcase</code>, <code class="inline">UPPERFLATCASE</code>, separado por espacios) y <b>Archivo</b> (<code class="inline">url-slug</code>, <code class="inline">file_name</code>, <code class="inline">FileName</code>, slug con la fecha de hoy adelante, nombre sin los caracteres que Windows rechaza, y ASCII sin acentos). Las cajas Origen y Resultado son editables, así que la ventana también sirve de borrador cuando no hay selección.</td></tr>
+    <tr><td><span class="key">Enter</span> o <span class="key">doble clic</span> <span class="scope">(dentro de la ventana)</span></td><td class="desc">"Reemplazar": activa la ventana de origen y pega el resultado sobre la selección. Si no había nada seleccionado, lo pega en la posición del cursor y lo avisa con un tooltip.</td></tr>
+    <tr><td><span class="key">Esc</span> <span class="scope">(dentro de la ventana)</span></td><td class="desc">Cierra sin tocar nada. El botón "Copiar" deja el resultado en el portapapeles y también cierra.</td></tr>
+  </table>
+  <p class="scope">El portapapeles se guarda y se restaura alrededor de la copia y del pegado, así que lo que hubiera ahí sobrevive a la conversión. Los estilos por palabras cortan por los separadores del texto y, solo si no hay ninguno, por las jorobas del camelCase: por eso <code class="inline">tHIS_Is_an_ExAmPLE</code> da <code class="inline">ThisIsAnExample</code> y no ocho palabras.</p>
+
+  <h2>Macro de nombre/firma <span class="src">macro_insta_name.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + X</span></td><td class="desc">Secuencia automatizada: Esc, Alt+Shift+Fin, Ctrl+A (seleccionar todo), Ctrl+V (pegar), Tab, Enter y Shift+A — con pausas calculadas entre cada paso. Pensada para completar un campo de nombre con el contenido del portapapeles.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Shift + X</span></td><td class="desc">Secuencia automatizada alternativa: Alt+Shift+H, Flecha Abajo, Enter — con pausas entre cada paso.</td></tr>
+  </table>
+
+  <h2>Wise Reminder <span class="src">find_wise_reminder.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Z</span></td><td class="desc">Si Wise Reminder está corriendo: lo activa si tiene ventana visible, o si está minimizado en la bandeja del sistema ejecuta una secuencia (Win+B, navegar con flechas, clicks en coordenadas fijas) para abrirlo desde el área de notificaciones. Si <b>no</b> está corriendo, lo inicia desde su ejecutable.</td></tr>
+    <tr><td><span class="key">Win + |</span></td><td class="desc">Igual que Win + Z (atajo de la laptop personal).</td></tr>
+  </table>
+
+  <h2>Hourglass <span class="src">open_hourglass.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Ctrl + Shift + Z</span></td><td class="desc">Si Hourglass.exe está corriendo, activa su ventana. Si no está corriendo, lo inicia desde su acceso directo del menú Inicio.</td></tr>
+    <tr><td><span class="key">Win + Shift + |</span></td><td class="desc">Igual que Win + Ctrl + Shift + Z (atajo de la laptop personal).</td></tr>
+  </table>
+
+  <h2>Abrir programa <span class="src">open-program-GUI.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Win + P</span></td><td class="desc">Abre una ventana con un botón por cada programa configurado (por defecto Paint y Notepad++). Un clic lo lanza; "Edit path" permite corregir la ruta del ejecutable y la guarda para la próxima vez.</td></tr>
+  </table>
+
+  <h2>Buscar pestaña de Google Calendar <span class="src">find_google_calendar.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Shift + Numpad Enter</span></td><td class="desc">Busca entre las ventanas del navegador configurado (Firefox por defecto, o Chrome) una pestaña cuyo título contenga "Calendario" o "Google Calendar", la selecciona y activa esa ventana.</td></tr>
+  </table>
+
+  <h2>Cerrar ventanas masivamente <span class="src">kill_all.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Shift + Alt + K</span></td><td class="desc">Recorre todas las ventanas abiertas y cierra las que tienen título y son visibles, <b>excluyendo</b> el escritorio (Progman/WorkerW) y las ventanas de Firefox, Chrome y Edge (que se preservan deliberadamente).</td></tr>
+  </table>
+
+  <h2>Atajo "Mostrar hora" <span class="src">Show_Time.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + C</span></td><td class="desc">Envía Win+B (activa la bandeja del sistema), luego 7 veces Flecha Derecha y Enter — secuencia para llegar al reloj/hora del sistema desde la bandeja vía teclado.</td></tr>
+  </table>
+
+  <h2>Ciclador de ventanas y pestañas guardadas <span class="src">Cycler_Windows_v3.ahk</span> <span class="pill gui">ventana (lista)</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + F5</span></td><td class="desc">Guarda la <b>ventana activa</b> en una lista interna (evita duplicados; muestra un aviso si ya estaba guardada).</td></tr>
+    <tr><td><span class="key">Ctrl + Win + F5</span></td><td class="desc">Guarda la <b>pestaña activa</b> del navegador (Chrome, Firefox o Edge) en esa <b>misma</b> lista, al lado de las ventanas. Como una pestaña no tiene handle estable, se guarda por título normalizado y se la vuelve a ubicar igual que los timers de pestaña de Ctrl + Win + F6: sobrevive a que cambie de posición, a que le cambie el contador de no leídos del título y hasta a que la arrastren a otra ventana del navegador. Si la ventana activa no es un navegador, lo avisa con un TrayTip y no guarda nada.</td></tr>
+    <tr><td><span class="key">Win + F4</span></td><td class="desc">Cicla a la siguiente entrada guardada y la activa: si es una <b>ventana</b> la trae al frente, si es una <b>pestaña</b> la selecciona dentro de su navegador y trae esa ventana al frente (restaurándola si estaba minimizada). Ventanas cerradas y pestañas que ya no existen se descartan solas de la lista.</td></tr>
+    <tr><td><span class="key">Ctrl + Win + F4</span></td><td class="desc">Alterna qué recorre Win + F4: <b>todo</b> → <b>solo pestañas</b> → <b>solo ventanas</b> → todo. <span class="scope">No borra nada</span>: la lista queda igual, solo cambia qué entradas se saltean. El modo actual se avisa con un TrayTip y se ve en el encabezado de la lista de Win + Shift + F4.</td></tr>
+    <tr><td><span class="key">Win + Shift + F5</span></td><td class="desc">Quita la <b>ventana activa</b> de la lista guardada (si estaba en ella).</td></tr>
+    <tr><td><span class="key">Ctrl + Shift + Win + F5</span></td><td class="desc">Quita la <b>pestaña activa</b> del navegador de la lista guardada (si estaba en ella).</td></tr>
+    <tr><td><span class="key">Win + Shift + F4</span></td><td class="desc">Muestra una ventana flotante con la lista de ventanas y pestañas guardadas (número, indicador de cuál es la actual, tipo, título y handle), con el filtro activo en el encabezado y las filas que ese filtro saltea marcadas como <code class="inline">skip</code>. Se cierra automáticamente al soltar la tecla Win.</td></tr>
+  </table>
+
+  <h2>Ventanas y pestañas con timer <span class="src">^^AHK_Unified_Master.ahk</span> <span class="pill gui">ventana (lista)</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + F6</span></td><td class="desc">Guarda la ventana activa en una lista <b>aparte</b> de la del ciclador y abre una GUI para elegir en cuánto tiempo reaparece, más un check <b>Always on top</b>. El tiempo se tipea en un solo campo, con el mismo formato que el prompt de <code class="inline">traymond-timer</code>: <code class="inline">25</code> (minutos), <code class="inline">90m</code>, <code class="inline">2h</code>, <code class="inline">1h30</code>, <code class="inline">45s</code>, <code class="inline">@17:45</code> (hora de reloj &mdash; mañana si ya pasó) o <code class="inline">0</code> para abrirla ahora mismo, sin timer. Al cumplirse el tiempo la ventana se restaura (si estaba minimizada) y se activa; el timer se consume (no se repite). Si la ventana se cierra antes, el timer se cancela solo.</td></tr>
+    <tr><td><span class="key">Ctrl + Win + F6</span></td><td class="desc">Igual que Win + F6 pero con la <b>pestaña activa del navegador</b> (Chrome, Firefox o Edge): guarda esa pestaña puntual, no la ventana entera. Al vencer el timer la busca por título vía UI Automation &mdash; primero en la ventana donde se guardó, después en el resto del mismo navegador y por último en los otros, con coincidencia exacta y, si no aparece, parcial &mdash;, la selecciona y activa su ventana. Al guardarla le limpia del título lo que Chrome cambia solo (<code class="inline">- Memory usage - 466 MB</code>, <code class="inline">- Pinned</code>, <code class="inline">- Audio playing</code>) y el contador de no leídos del principio (<code class="inline">(185)</code>), que si no nunca volvería a coincidir. Sobrevive a que la pestaña cambie de posición o de ventana; si ya se cerró, avisa con un TrayTip. Si la ventana activa no es un navegador, no hace nada y lo avisa.</td></tr>
+    <tr><td><span class="key">Win + Alt + U</span>, luego <span class="key">F4</span> <span class="scope">(dentro de 2&nbsp;s)</span></td><td class="desc">Programa el <b>cierre</b> de la <b>pestaña activa del navegador</b> (Chrome, Firefox o Edge). Abre la misma GUI que Ctrl + Win + F6 pero en modo cerrar, con el mismo campo único de tiempo (<code class="inline">25</code>, <code class="inline">90m</code>, <code class="inline">2h</code>, <code class="inline">1h30</code>, <code class="inline">45s</code>, <code class="inline">@17:45</code>, o <code class="inline">0</code> para cerrarla ahora mismo) y sin el check Always on top, que ahí no tendría sentido. Al vencer busca la pestaña por título igual que Ctrl + Win + F6, la selecciona, activa su ventana y recién entonces manda <span class="key">Ctrl + W</span>: si la ventana no llega a activarse, no manda nada y lo avisa con un TrayTip. El timer aparece en la lista de Win + Shift + F6 como <b>Cerrar pestaña</b>. La <span class="key">F4</span> vale con o sin modificadores, así que se puede seguir sosteniendo Win+Alt desde el acorde.</td></tr>
+    <tr><td><span class="key">Win + Alt + U</span>, luego <span class="key">F4</span> <span class="key">F4</span> <span class="scope">(el segundo, dentro de 450&nbsp;ms)</span></td><td class="desc">Programa el <b>cierre</b> de la <b>ventana activa</b>. Dos <span class="key">F4</span> seguidos en vez de uno: como no se puede saber si viene un segundo golpe, el primero espera 450&nbsp;ms antes de decidir que era el cierre de pestaña. Abre la misma GUI en modo cerrar, con el mismo formato de tiempo y <code class="inline">0</code> para cerrar ahora mismo. Al vencer manda <code class="inline">WinClose</code> (WM_CLOSE), así que la aplicación todavía puede preguntar si guardar: el timer nunca descarta trabajo por su cuenta. Si la ventana se cierra antes, el timer se cancela solo. Aparece en la lista de Win + Shift + F6 como <b>Cerrar ventana</b>.</td></tr>
+    <tr><td><span class="key">Win + Shift + F6</span></td><td class="desc">Abre la GUI de administración de timers: lista los que están corriendo con su cuenta regresiva y una columna <b>Tipo</b> (Abrir ventana / Abrir pestaña / Cerrar ventana / Cerrar pestaña), y permite <b>+1 min</b>, <b>+5 min</b>, <b>-1 min</b>, <b>Abrir/cerrar ya</b> (o doble clic en la fila) y <b>Eliminar</b> sobre la fila seleccionada. Se cierra con Escape o el botón Cerrar.</td></tr>
+  </table>
+
+  <h2>Accesos a Google Sheets <span class="src">url_firefox.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + G</span></td><td class="desc">Abre la planilla de Google Sheets configurada en una <b>ventana nueva</b> de Firefox.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Shift + G</span></td><td class="desc">Abre la misma planilla en una <b>pestaña nueva</b> de Firefox.</td></tr>
+  </table>
+
+  <h2>Contador de conversación <span class="src">convCount.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + Win + T</span></td><td class="desc">Incrementa un contador interno y escribe un marcador de texto tipo "Conversation User Input n° X @ fecha/hora ." en el cursor.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Win + R</span></td><td class="desc">Una pulsación: reinicia el contador a 0 (muestra un tooltip de confirmación). Doble pulsación dentro de 700&nbsp;ms: abre una ventana para fijar manualmente el valor del contador, con botones Save / Cancel / Ask (este último copia al portapapeles una pregunta predefinida sobre el número de input actual).</td></tr>
+  </table>
+
+  <h2>Crear archivos rápido <span class="src">createTXT.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Shift + T</span></td><td class="desc">Si el Explorador de Windows está activo, abre una ventana para crear un archivo nuevo en esa carpeta: nombre personalizable, extensión a elegir (.txt, .md, .json, .py, .ahk, .bat, .ps1), opción de usar timestamp como nombre y opción de abrir el archivo tras crearlo.</td></tr>
+    <tr><td><span class="key">Win + Shift + Click central</span> <span class="scope">(solo con el Explorador activo)</span></td><td class="desc">Crea instantáneamente un "New Text Document.txt" en la carpeta abierta del Explorador, sin diálogo, mostrando un tooltip de confirmación.</td></tr>
+  </table>
+
+  <h2>Mover/redimensionar con teclado <span class="src">resize.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + Click central</span></td><td class="desc">Redimensiona la ventana activa a 300×300 px, manteniendo su posición actual.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + Click derecho</span></td><td class="desc">Restaura la ventana activa (si estaba minimizada/maximizada) y la centra en la pantalla principal.</td></tr>
+  </table>
+
+  <h2>Atajos de la laptop personal <span class="src">ex ahk_STARTUP\!_STARTUP.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey / texto</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">AltGr + Numpad 2</span> / <span class="key">AltGr + Numpad 8</span></td><td class="desc">Baja / sube el volumen.</td></tr>
+    <tr><td><span class="key">AltGr + Numpad 3</span></td><td class="desc">Mute de volumen.</td></tr>
+    <tr><td><span class="key">AltGr + Numpad 4</span> / <span class="key">AltGr + Numpad 6</span></td><td class="desc">Pista anterior / siguiente.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + .</span> / <span class="key">Ctrl + Alt + ,</span></td><td class="desc">Envía <code class="inline">&gt;</code> / <code class="inline">&lt;</code>.</td></tr>
+    <tr><td><span class="key">AltGr + {</span></td><td class="desc">Maximiza la ventana activa.</td></tr>
+    <tr><td><span class="key">AltGr + -</span></td><td class="desc">Minimiza la ventana activa.</td></tr>
+    <tr><td><span class="key">Alt + F9</span></td><td class="desc">Matlab: selecciona la línea actual (Fin, Shift+Inicio) y la ejecuta con F9.</td></tr>
+    <tr><td><span class="key">Ctrl + Alt + D</span></td><td class="desc">Arregla el link de un PDF: toma de la barra de direcciones lo que sigue a las tres primeras palabras y lo vuelve a pegar como dirección.</td></tr>
+    <tr><td><span class="key">Ctrl + Shift + Bloq Mayús</span></td><td class="desc">Envía 4 × Tab y Enter.</td></tr>
+    <tr><td><span class="key">Ctrl + Shift + A</span> <span class="scope">(solo en Firefox)</span></td><td class="desc">Alt+D y escribe <code class="inline">@tabs </code> para buscar entre las pestañas abiertas.</td></tr>
+    <tr><td><span class="key">k6ini</span> / <span class="key">k6fin</span></td><td class="desc">Escriben <code class="inline">&lt;</code> / <code class="inline">&gt;</code> (disparan al instante).</td></tr>
+    <tr><td><span class="key">kuser</span> / <span class="key">kapp</span></td><td class="desc">Escriben <code class="inline">%userprofile%</code> / <code class="inline">%appdata%</code> (al terminar la palabra).</td></tr>
+    <tr><td><span class="key">kdd1</span> / <span class="key">kd1d</span></td><td class="desc">Fecha de mañana / ayer <code class="inline">dd/MM/yy</code> (al terminar la palabra).</td></tr>
+    <tr><td><span class="key">kss1</span> / <span class="key">ks1s</span></td><td class="desc">Mañana / ayer <code class="inline">dd/MM</code> (al terminar la palabra).</td></tr>
+    <tr><td><span class="key">kjj1</span></td><td class="desc">Mañana <code class="inline">dd-MM-yy</code>.</td></tr>
+    <tr><td><span class="key">skkk</span> / <span class="key">kmmd</span></td><td class="desc">Fecha <code class="inline">MM.dd</code>.</td></tr>
+    <tr><td><span class="key">kzzz</span></td><td class="desc">Fecha y hora <code class="inline">yy_MM_dd_HHmm</code>.</td></tr>
+    <tr><td><span class="key">khdx</span></td><td class="desc">Fecha y hora <code class="inline">yy-MM-dd_HH-mm</code>.</td></tr>
+  </table>
+
+  <h2>Macro Recorder (simple) <span class="src">Macro.Recorder.exe</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + F3</span></td><td class="desc">Lanza <code class="inline">Macro.Recorder.exe</code> (el grabador simple de la laptop personal) como proceso aparte. Dentro de él, <span class="key">F1</span> graba / para / reproduce. Mismo efecto que el botón <code class="inline">Macro Recorder</code> del Manager.</td></tr>
+  </table>
+
+  <h2>Pruebas manuales</h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Ñ</span></td><td class="desc">Abre <code class="inline">http://youtube.com</code> en el navegador por defecto. Está al final del .ahk, bajo el comentario <code class="inline">Pruebas Manuales de hotkeys (decidir luego si eliminar)</code>.</td></tr>
+  </table>
+
+  <h2>AHK Manager <span class="src">AHK_Manager.ahk</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey / control</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + R</span></td><td class="desc">Muestra/reactiva la ventana del AHK Manager y refresca la lista de scripts en ejecución.</td></tr>
+    <tr><td><span class="key">Icono de refresco</span></td><td class="desc">Refresca manualmente la lista de scripts AutoHotkey detectados (excluye .exe), indicando si cada uno está <span class="pill">Running</span>, <span class="pill">Paused</span> o <span class="pill">Suspended</span>.</td></tr>
+    <tr><td><span class="key">Reload All / Suspend All / Pause All / Kill All</span></td><td class="desc">Envía la acción correspondiente a <b>todos</b> los demás scripts AutoHotkey detectados (no afecta a este script unificado).</td></tr>
+    <tr><td><span class="key">Reload / Suspend / Pause Script / Kill</span></td><td class="desc">Aplica la acción solo al script seleccionado en la lista.</td></tr>
+    <tr><td><span class="key">Select - Edit</span></td><td class="desc">Abre el script seleccionado en Visual Studio Code (si está instalado en la ruta esperada).</td></tr>
+    <tr><td><span class="key">Open Folder</span></td><td class="desc">Abre la carpeta del script en el Explorador de Windows.</td></tr>
+    <tr><td><span class="key">Macro Recorder</span></td><td class="desc">Lanza <code class="inline">Macro.Recorder.exe</code> (igual que Win + F3).</td></tr>
+    <tr><td><span class="key">GUI Reload</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
+    <tr><td><span class="key">Quit</span></td><td class="desc">Cierra por completo este script unificado (todas las funcionalidades dejan de estar activas).</td></tr>
+    <tr><td><span class="key">Aux Scripts…</span></td><td class="desc">Abre la ventana de scripts auxiliares: tilda cuáles lanzar (los dos de <code class="inline">traymond-timer</code>, <code class="inline">ClipboardOCR.ahk</code>, <code class="inline">ColdTurkeyActivado.ahk</code>, <code class="inline">GreenshotSlowMouse.ahk</code>, <code class="inline">KillBrowsers</code> y <code class="inline">SimpleReminders</code>), individualmente o todos. Corren como procesos aparte; los que ya están corriendo se saltean, y para pararlos se usa <code class="inline">Kill</code> en la lista de arriba.</td></tr>
+    <tr><td><span class="key">Escape</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Oculta la ventana del Manager, igual que la X. <strong>No</strong> cierra el script: todos los hotkeys siguen activos. Para cerrarlo está el botón <code class="inline">Quit</code>.</td></tr>
+    <tr><td><span class="key">Alt + Espacio</span> <span class="scope">(solo con la ventana del Manager activa)</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
+  </table>
+
+  <h2>Al iniciar el script</h2>
+  <table>
+    <tr><th>Acción</th><th>Qué hace</th></tr>
+    <tr><td>Lanzamiento automático</td><td class="desc">Al arrancar, además de armar todos los hotkeys de arriba y mostrar el AHK Manager, no lanza programas externos (en la versión de work lanzaba RBTray y Wise Reminder; en la laptop personal se sacó).</td></tr>
+    <tr><td>Scripts auxiliares</td><td class="desc">Según <code class="inline">aux-scripts.ini</code> (<code class="inline">[Startup] Mode</code>), al arrancar abre la ventana de scripts auxiliares para elegir cuáles lanzar (<code class="inline">ask</code>, el default), lanza los tildados sin preguntar (<code class="inline">auto</code>) o no hace nada (<code class="inline">off</code>). El modo se elige desde esa misma ventana.</td></tr>
+  </table>
+
+  <h2>Archivos .ini requeridos</h2>
+  <table>
+    <tr><th>Archivo</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">open-program-GUI.ini</span></td><td class="desc">Guarda overrides de ruta por programa para la GUI "Abrir programa" (sección [Paths]).</td></tr>
+    <tr><td><span class="key">aux-scripts.ini</span></td><td class="desc">Guarda qué scripts auxiliares quedaron tildados (<code class="inline">[Selection]</code>) y qué hacer con ellos al iniciar el master (<code class="inline">[Startup] Mode</code>). Se crea solo.</td></tr>
+    <tr><td><span class="key">find_google_calendar.ini</span></td><td class="desc">Define qué navegador usar (acá <code class="inline">Firefox</code>; también acepta Chrome) para buscar la pestaña de Google Calendar (sección [Settings]).</td></tr>
+  </table>
+
+  <div id="noResults">Ningún hotkey coincide con el filtro.</div>
+
+  <h2 class="auxhead">Scripts auxiliares <span class="pill aux">aux</span></h2>
+  <div class="note aux">
+    <b>Nada de lo que sigue está en el script maestro.</b> Son procesos aparte — marcados con <span class="pill aux">aux</span> — que se lanzan desde el botón <code class="inline">Aux Scripts…</code> del Manager, o al iniciar el master según <code class="inline">aux-scripts.ini</code>.
+    Sus hotkeys existen <b>solo mientras el script esté corriendo</b>: si no lo lanzaste, la tecla no hace nada y conserva su comportamiento nativo de Windows. Para ver cuáles están activos, esa misma ventana los marca como <code class="inline">[corriendo]</code> o <code class="inline">[detenido]</code>, y aparecen en la lista del Manager.
+    Tampoco se pueden apagar desde <code class="inline">Hotkeys…</code>: ese menú solo alcanza a los hotkeys del propio master.
+  </div>
+
+  <h2>Traymond Timer <span class="src">traymond-timer/traymond-timer.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v1</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Shift + Z</span></td><td class="desc">Esconde la ventana activa a la bandeja (se lo pide a Traymond) y pregunta en cuántos minutos devolverla. <b>Pisa a propósito el Win+Shift+Z propio de Traymond</b>: lo ve primero, anota qué ventana se va y le reenvía el ocultado, que es lo que hace posible la cuenta regresiva.</td></tr>
+    <tr><td><span class="key">Win + Alt + Shift + Z</span></td><td class="desc">Esconde sin cuenta regresiva y sin preguntar — exactamente lo que hace Traymond por su cuenta.</td></tr>
+    <tr><td><span class="key">Win + Shift + R</span></td><td class="desc">Devuelve ahora mismo todas las ventanas escondidas.</td></tr>
+    <tr><td><span class="key">Win + Shift + C</span></td><td class="desc">Olvida las cuentas regresivas pendientes y deja las ventanas escondidas. <b>Pide confirmaci&oacute;n antes</b>: abre una ventana que lista lo que est&aacute; por olvidar (hasta ocho, despu&eacute;s <code class="inline">... and N more</code>) con el tiempo restante de cada una. El bot&oacute;n por defecto es "Keep them", as&iacute; que Enter, Esc y la X conservan las cuentas; "Cancel countdowns" las borra. Si no hay ninguna pendiente no abre nada y solo avisa.</td></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">Requiere <code class="inline">Traymond.exe</code> corriendo: sin él el script se cierra con un cartel al arrancar, y por eso la ventana <code class="inline">Aux Scripts…</code> lo chequea antes de lanzarlo. También trae menú de bandeja (restaurar todo, ver pendientes, cancelar — este último pasa por la misma confirmación que Win + Shift + C).</td></tr>
+  </table>
+
+  <h2>Traymond restore 16:40 <span class="src">traymond-timer/restore-at-fixed-time.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v1</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">No define ningún hotkey — por diseño, para no poder chocar con nada. Todos los días a las <code class="inline">16:40</code> le pide a Traymond que devuelva todas las ventanas que tenga escondidas. Sirve como barrido diario encima de las cuentas regresivas individuales.</td></tr>
+  </table>
+
+  <h2>Clipboard OCR <span class="src">ClipboardOCR.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + O</span></td><td class="desc">Hace OCR de la imagen que esté en el portapapeles y muestra el texto reconocido en una ventana editable: <code class="inline">Copiar texto</code> / <code class="inline">Guardar .txt</code> / <code class="inline">Guardar imagen</code> / <code class="inline">Descartar</code>. Los dos guardados escriben archivos con fecha y hora en la carpeta Descargas.</td></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">Usa <code class="inline">OCR.ahk</code> (la API Windows.Media.Ocr): no hace falta instalar ningún motor de OCR aparte.</td></tr>
+  </table>
+
+  <h2>Bloque CT (Cold Turkey) <span class="src">ColdTurkeyActivado.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">No define hotkeys. Al lanzarlo pide la configuración (intervalo mínimo y máximo en minutos, y a los cuántos minutos parar solo) y después muestra recordatorios en pantalla a intervalos al azar dentro de ese rango. La ventana <code class="inline">Bloque CT Running</code> lleva la cuenta; cerrarla con la X <b>no</b> corta los recordatorios (se reabre desde el icono de la bandeja), para eso está <code class="inline">Stop Script</code>.</td></tr>
+  </table>
+
+  <h2>Greenshot Slow Mouse <span class="src">GreenshotSlowMouse.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">No define hotkeys: vigila la aparición de la ventana de captura de región de Greenshot (cada 75&nbsp;ms) en lugar de atarse a una tecla, así funciona sin importar cómo se inició la captura y no hay que mantenerlo sincronizado con los hotkeys de Greenshot. Mientras esa ventana está en pantalla baja el puntero al 70&nbsp;% y apaga la aceleración del mouse, para poder ajustar los bordes de la selección con precisión; lo restaura todo al cerrarse (y también si el script se cierra a mitad de camino). No necesita que Greenshot esté corriendo para arrancar.</td></tr>
+  </table>
+
+  <h2>Kill Browsers <span class="src">KillBrowsers/KillBrowsers.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Ctrl + Alt + K</span></td><td class="desc">Cierra Firefox y/o Chrome. Según <code class="inline">kill_preferences.ini</code> abre una ventana para elegir, o mata directo el primero del orden configurado (<code class="inline">DoNotOpenGUI=1</code>). El .ini se relee en cada uso, así que no hay que recargar el script al cambiarlo. <b>No confundir con <span class="key">Ctrl + Shift + Alt + K</span></b> del master (ver <em>Cerrar ventanas masivamente</em>), que cierra todo <em>excepto</em> los navegadores.</td></tr>
+  </table>
+
+  <h2>Simple Reminders <span class="src">SimpleReminders/SimpleReminders.ahk</span> <span class="pill aux">aux</span> <span class="pill">AHK v2</span> <span class="pill gui">ventana</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + Alt + Z</span></td><td class="desc">Abre la ventana para escribir, editar y borrar recordatorios (hasta 100 caracteres, con fecha y hora). <code class="inline">Esc</code> o cerrar la oculta; el script sigue en la bandeja.</td></tr>
+    <tr><td><span class="scope nohk">(sin hotkey)</span></td><td class="desc">Cuando llega la hora aparece un cartel chico en el centro-derecha de la pantalla, con opciones de postergar: sin sonido, sin alarma y sin robar el foco. Cerrarlo con la X o <code class="inline">Esc</code> lo posterga, para que no se pierda. La base es <code class="inline">reminders.csv</code>, al lado del script.</td></tr>
+  </table>
+
+  <footer>Generado a partir de <code class="inline">D:\ahk2\AHK_Unified_Master.ahk</code> — todo el contenido refleja exactamente los hotkeys y la lógica presentes en ese archivo.</footer>
+</div>
+
+<script>
+/* Filtro por hotkey — ES5 puro para el motor IE embebido (Shell.Explorer / IE11). */
+(function () {
+  var input   = document.getElementById('filterInput');
+  var clearBtn= document.getElementById('clearBtn');
+  var hitCount= document.getElementById('hitCount');
+  var noRes   = document.getElementById('noResults');
+  var chips   = document.getElementsByClassName('chip');
+
+  function norm(s) { return (s || '').toLowerCase(); }
+
+  /* Devuelve el texto de los <span class="key"> de una fila (la columna del hotkey).
+     Si la fila no tiene ninguno, cae al texto completo de la fila. */
+  function rowHaystack(row) {
+    var spans = row.getElementsByTagName('span');
+    var keyText = '';
+    for (var i = 0; i < spans.length; i++) {
+      var cn = spans[i].className || '';
+      if ((' ' + cn + ' ').indexOf(' key ') >= 0) {
+        keyText += ' ' + (spans[i].innerText || spans[i].textContent || '');
+      }
+    }
+    if (keyText) return norm(keyText);
+    return norm(row.innerText || row.textContent || '');
+  }
+
+  function apply(q) {
+    q = norm(q);
+    var headers = document.getElementsByTagName('h2');
+    var totalVisible = 0;
+
+    for (var i = 0; i < headers.length; i++) {
+      var h = headers[i];
+      /* Grupo = hermanos siguientes hasta el próximo <h2> (tabla + posible <p class="scope">). */
+      var group = [];
+      var el = h.nextSibling;
+      while (el) {
+        if (el.nodeType === 1) {
+          if (el.tagName.toLowerCase() === 'h2') break;
+          group.push(el);
+        }
+        el = el.nextSibling;
+      }
+
+      var groupHasMatch = false;
+      for (var g = 0; g < group.length; g++) {
+        var node = group[g];
+        if (node.tagName && node.tagName.toLowerCase() === 'table') {
+          var rows = node.getElementsByTagName('tr');
+          for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (row.getElementsByTagName('th').length) continue; /* fila de encabezado */
+            var show = (q === '' || rowHaystack(row).indexOf(q) >= 0);
+            row.style.display = show ? '' : 'none';
+            if (show) { groupHasMatch = true; totalVisible++; }
+          }
+        }
+      }
+
+      var showGroup = (q === '' || groupHasMatch);
+      h.style.display = showGroup ? '' : 'none';
+      for (var g2 = 0; g2 < group.length; g2++) {
+        group[g2].style.display = showGroup ? '' : 'none';
+      }
+    }
+
+    noRes.style.display = (q !== '' && totalVisible === 0) ? 'block' : 'none';
+    hitCount.innerHTML = (q === '') ? '' : (totalVisible + ' resultado' + (totalVisible === 1 ? '' : 's'));
+  }
+
+  input.onkeyup = function () { apply(this.value); };
+  input.onchange = function () { apply(this.value); };
+
+  clearBtn.onclick = function () { input.value = ''; apply(''); input.focus(); };
+
+  for (var c = 0; c < chips.length; c++) {
+    chips[c].onclick = function () {
+      var q = this.getAttribute('data-q');
+      /* Alternar: si el chip ya está aplicado, limpiar. */
+      input.value = (norm(input.value) === norm(q)) ? '' : q;
+      apply(input.value);
+      input.focus();
+    };
+  }
+
+  apply('');
+  try { input.focus(); } catch (e) {}
+})();
+</script>
+</body>
+</html>

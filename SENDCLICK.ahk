@@ -1,0 +1,3 @@
+﻿+CapsLock::
+Click
+return
