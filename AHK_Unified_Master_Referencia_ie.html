@@ -259,6 +259,14 @@
   </table>
   <p class="scope">El portapapeles se guarda y se restaura alrededor de la copia y del pegado, así que lo que hubiera ahí sobrevive a la conversión. Los estilos por palabras cortan por los separadores del texto y, solo si no hay ninguno, por las jorobas del camelCase: por eso <code class="inline">tHIS_Is_an_ExAmPLE</code> da <code class="inline">ThisIsAnExample</code> y no ocho palabras.</p>
 
+  <h2>Simple Macro Recorder <span class="src">SimpleMacroRecorder.ahk</span></h2>
+  <table>
+    <tr><th>Hotkey</th><th>Qué hace</th></tr>
+    <tr><td><span class="key">Win + F3</span></td><td class="desc">Lanza el grabador de macros simple (proceso aparte), o lo mata si ya está corriendo. Matarlo borra las dos macros.</td></tr>
+    <tr><td><span class="key">F1</span> / <span class="key">F2</span></td><td class="desc">Solo mientras corre. Mantener (&gt; 0,4 s) y soltar empieza a grabar en ese slot; F1 o F2 cortan la grabación. Tocar reproduce el slot; tocar de nuevo durante la reproducción la corta.</td></tr>
+    <tr><td><span class="key">Win + Shift + F3</span></td><td class="desc">Solo mientras corre. Guarda los slots grabados como scripts <code class="inline">.ahk</code> ejecutables en <code class="inline">simple-macros\</code>, con fecha y hora en el nombre. Abrir uno de esos archivos (doble clic) no lo reproduce: lo carga de vuelta en su slot, lanzando el grabador si hace falta.</td></tr>
+  </table>
+
   <h2>Macro de nombre/firma <span class="src">macro_insta_name.ahk</span></h2>
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>

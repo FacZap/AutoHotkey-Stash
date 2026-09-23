@@ -1235,6 +1235,29 @@ CcStripAccents(s) {
 }
 
 ; ============================================================================
+; SimpleMacroRecorder.ahk  (Win+F3 -> lo lanza o lo mata)
+; ============================================================================
+; Corre aparte por lo mismo que MacroRecorder.ahk: mientras graba registra un
+; ~*vk por cada tecla. Matarlo borra sus dos macros (viven en %TEMP%).
+#F3::
+{
+    path := A_ScriptDir "\SimpleMacroRecorder.ahk"
+    DetectHiddenWindows(true)
+    SetTitleMatchMode(2)
+    if WinExist("\SimpleMacroRecorder.ahk - AutoHotkey ahk_class AutoHotkey") {
+        WinClose()
+        ToolTip("Simple Macro Recorder cerrado — macros borradas")
+        SetTimer(() => ToolTip(), -1500)
+        return
+    }
+    if !FileExist(path) {
+        MsgBox("No se encontró " path, "Simple Macro Recorder", "Iconx")
+        return
+    }
+    Run('"' A_AhkPath '" "' path '"')
+}
+
+; ============================================================================
 ; find_wise_reminder.ahk
 ; ============================================================================
 #z::
@@ -2801,6 +2824,10 @@ global gHKSections := [
     { id: "convert_case", title: "Convertir mayúsculas/minúsculas", src: "ConvertCase.ahk", items: [
         { id: "gui", type: "hotkey", hk: "^F2", label: "Ctrl + F2",
           desc: "Abre la ventana con los 25 estilos (texto, código, nombres de archivo) para el texto seleccionado" } ] },
+
+    { id: "simple_macro", title: "Simple Macro Recorder", src: "SimpleMacroRecorder.ahk", items: [
+        { id: "toggle", type: "hotkey", hk: "#F3", label: "Win + F3",
+          desc: "Lanza el grabador de 2 slots (F1/F2), o lo mata y borra sus macros" } ] },
 
     { id: "macro_name", title: "Macro de nombre/firma", src: "macro_insta_name.ahk", items: [
         { id: "main", type: "hotkey", hk: "^!x",  label: "Ctrl + Alt + X",

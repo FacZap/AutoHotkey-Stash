@@ -99,6 +99,29 @@ The master's Manager GUI launches it via `OpenMacroRecorder()`.
   already uses them.
 - Full usage: `README_MacroRecorder.md`. Remaining work: `TODO_MacroRecorder.md`.
 
+### Simple macro recorder
+
+`SimpleMacroRecorder.ahk` (v2) is a two-slot, no-GUI cut-down of the old
+`Macro.Recorder.v2.ahk` (still on the `work` branch). The master's `Win+F3`
+launches it, or closes it if running.
+
+- `F1` / `F2`: hold (> 0.4 s) and release to record into that slot, either key
+  stops; tap to play, tap again to stop playback. `Win+Shift+F3` copies the
+  recorded slots to `simple-macros\` as timestamped `.ahk` files. These three
+  hotkeys only exist while it runs.
+- Each macro is a standalone v2 script in `%TEMP%\ahk_simple_macro`, played in
+  its own process, which binds the slot key to `ExitApp`. `OnExit` closes any
+  playback still running and deletes that folder, so `Win+F3` (a `WinClose`)
+  clears both slots.
+- Opening a saved macro (double-click) does not play it: without the `play`
+  argument the file relaunches the recorder with its own path, and the recorder
+  loads it into the slot its `F1::`/`F2::ExitApp` line names. `#SingleInstance
+  Force` replaces the running instance; `Cleanup` returns early on the `Single`
+  exit reason and the new instance adopts the temp files, so the other slot
+  survives.
+- Screen coordinates only, no `Sleep` between actions — the old script's
+  defaults. Separate process for the same reason as `MacroRecorder.ahk`.
+
 ### Window cycler (windows + browser tabs)
 
 The cycler in the master keeps **one** list that holds both windows and browser
