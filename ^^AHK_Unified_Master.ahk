@@ -47,11 +47,6 @@ global gCyclerFilter := "all"       ; qué recorre Win+F4: "all" | "tab" | "win"
 global gListGuiVisible := false
 global cyclerListGui := ""
 
-clickX := 600
-clickY := 40
-clickXX := 500
-clickYY := 150
-
 ; ---- idle_edit_v2: umbral de inactividad (0 = desactivado, por defecto) ----
 global idleMinutes := 0
 global idleThresholdMs := idleMinutes * 60 * 1000
@@ -1260,27 +1255,39 @@ CcStripAccents(s) {
 ; ============================================================================
 ; find_wise_reminder.ahk
 ; ============================================================================
+; Desde la v2 el proceso tiene además una ventanita visible (500x193, toolwindow,
+; también titulada "Wise Reminder"), así que "ahk_exe WiseReminder.exe" ya no
+; sirve para saber si la ventana principal está en la bandeja. Se busca la
+; principal por clase WPF + título, excluyendo toolwindows.
+; Oculta, no se puede mostrar con WinShow (WPF la deja en blanco): se le manda al
+; NotifyIcon de WinForms su propio mensaje de bandeja (WM_USER+1024) con un
+; doble clic, que es lo que hace la app al restaurarse.
 #z::
 {
-    if ProcessExist("WiseReminder.exe") {
-        WinState := ""
-        try WinState := WinGetMinMax("ahk_exe WiseReminder.exe")
-        if (WinState = "") {
-            SendInput "#b"
-            SendInput "{Enter}"
-            Sleep 50
-            SendInput "{Up}"
-            SendInput "w"
-            Sleep 40
-            SendInput "w"
-            Sleep 40
-            SendInput "{Enter}"
-            Sleep 100
-            Click clickX, clickY
-        } else
-            WinActivate "ahk_exe WiseReminder.exe"
-    } else
+    if !ProcessExist("WiseReminder.exe") {
         Run '"C:\Program Files (x86)\Wise\Wise Reminder\WiseReminder.exe"'
+        return
+    }
+    mainHwnd := 0, trayHwnd := 0
+    DetectHiddenWindows true
+    for h in WinGetList("ahk_exe WiseReminder.exe") {
+        cls := WinGetClass(h)
+        if (InStr(cls, "HwndWrapper[WiseReminder.exe") = 1 && WinGetTitle(h) = "Wise Reminder"
+            && !(WinGetExStyle(h) & 0x80))          ; WS_EX_TOOLWINDOW
+            mainHwnd := h
+        else if (InStr(cls, "WindowsForms10.Window.") = 1)
+            trayHwnd := h
+    }
+    if (mainHwnd && DllCall("IsWindowVisible", "ptr", mainHwnd)) {
+        WinActivate mainHwnd                        ; también la desminimiza
+        return
+    }
+    if !trayHwnd
+        return
+    PostMessage 0x800, 0, 0x203, trayHwnd           ; WM_LBUTTONDBLCLK
+    DetectHiddenWindows false
+    if (mainHwnd && WinWait("ahk_id " mainHwnd,, 2))
+        WinActivate mainHwnd
 }
 
 ; ============================================================================
