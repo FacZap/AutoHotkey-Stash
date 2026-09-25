@@ -51,7 +51,8 @@ shown with `NoActivate` so it never steals focus from what you are typing in.
 If several are due at once they stack downwards.
 
 - **Snooze** — pushes the due time out by the amount in the dropdown
-  (5/10/15/30 minutes, 1/2/4 hours, or tomorrow 09:00)
+  (5/10/15/30 minutes, 1/2/4 hours, or tomorrow 09:00). A tooltip then shows
+  when it will come back — for 1 s if that is within 4 hours, 2 s otherwise
 - **Dismiss** — marks the reminder done
 
 Closing the pop-up with the X or Escape snoozes it, so it cannot fall into a
