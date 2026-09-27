@@ -7,3 +7,7 @@ push_to_personal.bat
 SimpleReminders/reminders.csv
 # Tildes del lanzador de scripts auxiliares (estado de cada maquina).
 aux-scripts.ini
+
+# Macros guardadas por SimpleMacroRecorder (Win+Shift+F3): grabaciones
+# personales de cada maquina.
+simple-macros/
