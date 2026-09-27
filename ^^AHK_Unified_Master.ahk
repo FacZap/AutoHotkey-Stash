@@ -1415,14 +1415,33 @@ GoogleCalendarBrowserExe := Map("Chrome", "chrome.exe", "Firefox", "firefox.exe"
 
 ; ============================================================================
 ; Show_Time.ahk
+;   Win+C (sostenido) = reloj flotante hh:mm:ss; se cierra al soltar Win o C.
+;   El auto-repeat del teclado no reabre nada: con un solo hilo por hotkey (el
+;   default de v2) las repeticiones se descartan mientras este hilo sigue en el
+;   bucle.
 ; ============================================================================
 #c::  ; Win + C
 {
-    Send "#{b}"
-    Sleep 100
-    Send "{Right 7}"   ; 7 en la barra de tareas de la laptop personal (5 en work)
-    Sleep 50
-    Send "{Enter}"
+    clockGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Border")
+    clockGui.BackColor := "1E1E1E"
+    clockGui.MarginX := 24
+    clockGui.MarginY := 12
+    clockGui.SetFont("s36 bold cFFFFFF", "Consolas")
+    txt := clockGui.Add("Text", "Center", FormatTime(, "HH:mm:ss"))
+    clockGui.Show("Hide AutoSize")
+    clockGui.GetPos(, , &w, &h)
+    MonitorGetWorkArea(MonitorGetPrimary(), &l, &t, &r, &b)
+    clockGui.Show("NoActivate x" (l + (r - l - w) // 2) " y" (t + (b - t - h) // 2))
+    last := ""
+    while (GetKeyState("c", "P") && (GetKeyState("LWin", "P") || GetKeyState("RWin", "P"))) {
+        now := FormatTime(, "HH:mm:ss")
+        if (now != last) {
+            txt.Value := now
+            last := now
+        }
+        Sleep 30
+    }
+    clockGui.Destroy()
 }
 
 ; ============================================================================
@@ -2927,7 +2946,7 @@ global gHKSections := [
 
     { id: "show_time", title: "Atajo Mostrar hora", src: "Show_Time.ahk", items: [
         { id: "clock", type: "hotkey", hk: "#c", label: "Win + C",
-          desc: "Win+B, 7 veces Derecha y Enter para llegar al reloj" } ] },
+          desc: "Muestra un reloj hh:mm:ss mientras se mantiene apretado" } ] },
 
     { id: "cycler", title: "Ciclador de ventanas y pestañas guardadas", src: "Cycler_Windows_v3.ahk", items: [
         { id: "add",        type: "hotkey", hk: "#F5",   label: "Win + F5",                desc: "Guarda la ventana activa en la lista" },

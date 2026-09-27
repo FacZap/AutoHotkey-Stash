@@ -68,7 +68,8 @@ It `#Include`s `ahk_STARTUP/!_personal.ahk` (optional, `*i`): private hotstrings
   `AltGr+{`/`AltGr+-` max/min, `Alt+F9` Matlab, `Ctrl+Alt+D` PDF fix,
   extra date hotstrings, …). `Win+|` / `Win+Shift+|` are aliases of the Wise
   Reminder / Hourglass launchers.
-- `Win+C` (Show_Time) uses **7** Right presses (5 on the work PC).
+- `Win+C` (Show_Time) no longer walks the tray with `Win+B` + Right presses:
+  held down it shows a floating hh:mm:ss clock, which closes on release.
 - Nothing external is launched at startup (work launched RBTray + Wise Reminder).
 
 ### Hotkey registry and reference docs — keep in sync
