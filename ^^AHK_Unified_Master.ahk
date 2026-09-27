@@ -190,6 +190,7 @@ BrightnessOSD() {
 ; calendar.ahk
 ; ============================================================================
 #Numpad5::ShowCalendarGui()
+RAlt & Numpad1::ShowCalendarGui()   ; atajo de la laptop personal
 
 ShowCalendarGui() {
     cg := Gui("+AlwaysOnTop +ToolWindow", "Calendario")
@@ -2892,7 +2893,9 @@ global gHKSections := [
 
     { id: "calendar", title: "Calendario emergente", src: "calendar.ahk", items: [
         { id: "show", type: "hotkey", hk: "#Numpad5", label: "Win + Numpad 5",
-          desc: "Abre un calendario para copiar una fecha al portapapeles" } ] },
+          desc: "Abre un calendario para copiar una fecha al portapapeles" },
+        { id: "show2", type: "hotkey", hk: "RAlt & Numpad1", label: "AltGr + Numpad 1",
+          desc: "Igual que Win + Numpad 5 (atajo de la laptop personal)" } ] },
 
     { id: "logger", title: "Registro de texto / log", src: "logger.ahk", items: [
         { id: "stamp", type: "hotkey", hk: "!^F7", label: "Ctrl + Alt + F7",
