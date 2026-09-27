@@ -316,6 +316,16 @@ SnoozeReminder(id, choice) {
     SaveReminders()
     if ManagerOpen
         RefreshList()
+    ShowSnoozeTip(stamp)
+}
+
+; Brief confirmation of when the reminder comes back: 1 s for a short snooze
+; (<= 4 h), 2 s for a longer one, where the date is worth a second look.
+ShowSnoozeTip(stamp) {
+    static clear := () => ToolTip(, , , 20)
+    mins := DateDiff(stamp, A_Now, "Minutes")
+    ToolTip("Snoozed until " FormatTime(stamp, "ddd yyyy-MM-dd HH:mm"), , , 20)
+    SetTimer(clear, mins <= 240 ? -2000 : -3000)
 }
 
 DismissReminder(id) {
