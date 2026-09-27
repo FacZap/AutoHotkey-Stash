@@ -227,7 +227,7 @@
   <h2>Wise Reminder <span class="src">find_wise_reminder.ahk</span></h2>
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>
-    <tr><td><span class="key">Win + Z</span></td><td class="desc">Si Wise Reminder está corriendo: lo activa si tiene ventana visible, o si está minimizado en la bandeja del sistema ejecuta una secuencia (Win+B, navegar con flechas, clicks en coordenadas fijas) para abrirlo desde el área de notificaciones. Si <b>no</b> está corriendo, lo inicia desde su ejecutable.</td></tr>
+    <tr><td><span class="key">Win + Z</span></td><td class="desc">Si Wise Reminder está corriendo: busca su ventana principal por clase WPF y título (salteando la ventanita toolwindow que la v2 también llama "Wise Reminder"). Si está visible la activa; si está escondida en la bandeja le manda al icono su propio mensaje de doble clic (WM_USER+1024), que es lo que la app usa para restaurarse — ya no hay secuencia de Win+B ni clicks a ciegas. Si <b>no</b> está corriendo, lo inicia desde su ejecutable.</td></tr>
     <tr><td><span class="key">Win + |</span></td><td class="desc">Igual que Win + Z (atajo de la laptop personal).</td></tr>
   </table>
 
