@@ -335,10 +335,12 @@
     <tr><td><span class="key">khdx</span></td><td class="desc">Fecha y hora <code class="inline">yy-MM-dd_HH-mm</code>.</td></tr>
   </table>
 
-  <h2>Macro Recorder (simple) <span class="src">Macro.Recorder.exe</span></h2>
+  <h2>Simple Macro Recorder <span class="src">SimpleMacroRecorder.ahk</span></h2>
   <table>
     <tr><th>Hotkey</th><th>Qué hace</th></tr>
-    <tr><td><span class="key">Win + F3</span></td><td class="desc">Lanza <code class="inline">Macro.Recorder.exe</code> (el grabador simple de la laptop personal) como proceso aparte. Dentro de él, <span class="key">F1</span> graba / para / reproduce. Mismo efecto que el botón <code class="inline">Macro Recorder</code> del Manager.</td></tr>
+    <tr><td><span class="key">Win + F3</span></td><td class="desc">Lanza el grabador de macros simple (proceso aparte), o lo mata si ya está corriendo. Matarlo borra las dos macros. Mismo efecto que el botón <code class="inline">Macro Recorder</code> del Manager.</td></tr>
+    <tr><td><span class="key">F1</span> / <span class="key">F2</span></td><td class="desc">Solo mientras corre. Mantener (&gt; 0,4 s) y soltar empieza a grabar en ese slot; F1 o F2 cortan la grabación. Tocar reproduce el slot; tocar de nuevo durante la reproducción la corta.</td></tr>
+    <tr><td><span class="key">Win + Shift + F3</span></td><td class="desc">Solo mientras corre. Guarda los slots grabados como scripts <code class="inline">.ahk</code> ejecutables en <code class="inline">simple-macros\</code>, con fecha y hora en el nombre. Abrir uno de esos archivos (doble clic) no lo reproduce: lo carga de vuelta en su slot, lanzando el grabador si hace falta.</td></tr>
   </table>
 
   <h2>Pruebas manuales</h2>
@@ -356,7 +358,7 @@
     <tr><td><span class="key">Reload / Suspend / Pause Script / Kill</span></td><td class="desc">Aplica la acción solo al script seleccionado en la lista.</td></tr>
     <tr><td><span class="key">Select - Edit</span></td><td class="desc">Abre el script seleccionado en Visual Studio Code (si está instalado en la ruta esperada).</td></tr>
     <tr><td><span class="key">Open Folder</span></td><td class="desc">Abre la carpeta del script en el Explorador de Windows.</td></tr>
-    <tr><td><span class="key">Macro Recorder</span></td><td class="desc">Lanza <code class="inline">Macro.Recorder.exe</code> (igual que Win + F3).</td></tr>
+    <tr><td><span class="key">Macro Recorder</span></td><td class="desc">Lanza el Simple Macro Recorder, o lo mata si ya está corriendo (igual que Win + F3).</td></tr>
     <tr><td><span class="key">GUI Reload</span></td><td class="desc">Recarga este script unificado completo.</td></tr>
     <tr><td><span class="key">Quit</span></td><td class="desc">Cierra por completo este script unificado (todas las funcionalidades dejan de estar activas).</td></tr>
     <tr><td><span class="key">Aux Scripts…</span></td><td class="desc">Abre la ventana de scripts auxiliares: tilda cuáles lanzar (los dos de <code class="inline">traymond-timer</code>, <code class="inline">ClipboardOCR.ahk</code>, <code class="inline">ColdTurkeyActivado.ahk</code>, <code class="inline">GreenshotSlowMouse.ahk</code>, <code class="inline">KillBrowsers</code> y <code class="inline">SimpleReminders</code>), individualmente o todos. Corren como procesos aparte; los que ya están corriendo se saltean, y para pararlos se usa <code class="inline">Kill</code> en la lista de arriba.</td></tr>

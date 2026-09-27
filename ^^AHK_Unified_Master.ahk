@@ -1241,6 +1241,31 @@ CcStripAccents(s) {
 }
 
 ; ============================================================================
+; SimpleMacroRecorder.ahk  (Win+F3 -> lo lanza o lo mata)
+; ============================================================================
+; Corre aparte por lo mismo que MacroRecorder.ahk: mientras graba registra un
+; ~*vk por cada tecla. Matarlo borra sus dos macros (viven en %TEMP%).
+; También lo lanza el botón "Macro Recorder" del Manager, de ahí la función.
+#F3::ToggleSimpleMacroRecorder()
+
+ToggleSimpleMacroRecorder() {
+    path := A_ScriptDir "\SimpleMacroRecorder.ahk"
+    DetectHiddenWindows(true)
+    SetTitleMatchMode(2)
+    if WinExist("\SimpleMacroRecorder.ahk - AutoHotkey ahk_class AutoHotkey") {
+        WinClose()
+        ToolTip("Simple Macro Recorder cerrado — macros borradas")
+        SetTimer(() => ToolTip(), -1500)
+        return
+    }
+    if !FileExist(path) {
+        MsgBox("No se encontró " path, "Simple Macro Recorder", "Iconx")
+        return
+    }
+    Run('"' A_AhkPath '" "' path '"')
+}
+
+; ============================================================================
 ; find_wise_reminder.ahk
 ; ============================================================================
 #z::FindWiseReminder()
@@ -2998,9 +3023,9 @@ global gHKSections := [
         { id: "show", type: "hotkey", hk: "^!r", label: "Ctrl + Alt + R", protected: true,
           desc: "Muestra la ventana del Manager (no se puede apagar)" } ] },
 
-    { id: "macro", title: "Macro Recorder (simple)", src: "Macro.Recorder.exe", items: [
-        { id: "open", type: "hotkey", hk: "#F3", label: "Win + F3",
-          desc: "Lanza Macro.Recorder.exe (F1: grabar / parar / reproducir)" } ] },
+    { id: "simple_macro", title: "Simple Macro Recorder", src: "SimpleMacroRecorder.ahk", items: [
+        { id: "toggle", type: "hotkey", hk: "#F3", label: "Win + F3",
+          desc: "Lanza el grabador de 2 slots (F1/F2), o lo mata y borra sus macros" } ] },
 
     { id: "personal", title: "Atajos de la laptop personal", src: "!_STARTUP.ahk (personal)", items: [
         { id: "voldown", type: "hotkey", hk: "RAlt & Numpad2", label: "AltGr + Numpad 2", desc: "Baja el volumen" },
@@ -3613,7 +3638,7 @@ AddButton("x+5", "yp", "w85", "GUI Reload", (*) => Reload())
 AddButton("x+5", "yp", "w85", "Quit", (*) => ExitApp())
 
 ; Row 4
-AddButton("x10", "y+5", "w174", "Macro Recorder", (*) => OpenMacroRecorder())
+AddButton("x10", "y+5", "w174", "Macro Recorder", (*) => ToggleSimpleMacroRecorder())
 AddButton("x+5", "yp",  "w174", "Hotkeys…",       (*) => ShowHotkeyTogglesGui())
 
 ; Row 5
@@ -3740,21 +3765,6 @@ EditScript() {
         MsgBox("Please select a script to edit.")
     }
     Refresh()
-}
-
-; Launches the simple Macro.Recorder.exe (laptop personal) as its own process —
-; it must stay separate, because while recording it registers a hotkey for
-; every virtual key and would collide with this script's own bindings.
-; F1 is its only key (record / stop / play). Also bound to Win+F3.
-#F3::OpenMacroRecorder()
-
-OpenMacroRecorder() {
-    macroRecorderPath := A_ScriptDir "\Macro.Recorder.exe"
-    if !FileExist(macroRecorderPath) {
-        MsgBox("Unable to find Macro.Recorder.exe at: " macroRecorderPath)
-        return
-    }
-    Run('"' macroRecorderPath '"')
 }
 
 ; Actions target the exact window handle the list row was built from. Resolving

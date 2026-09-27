@@ -59,10 +59,11 @@ It `#Include`s `ahk_STARTUP/!_personal.ahk` (optional, `*i`): private hotstrings
 - **Brightness**: `RAlt & PgDn` = +10, `RAlt & PgUp` = −10 (same direction as
   the old `ahk_STARTUP/Brightness.ahk`), plus work's `Win+,` / `Win+.` (±5).
   All go through `AdjustScreenBrightness()` (WMI).
-- **Macro recorder**: the *simple* one. `Win+F3` and the Manager's
-  `Macro Recorder` button launch `Macro.Recorder.exe` (source:
-  `Macro.Recorder.ahk`, v2; `F1` records/stops/plays). Work's big
-  `MacroRecorder.ahk` was intentionally not brought over.
+- **Macro recorder**: `Win+F3` and the Manager's `Macro Recorder` button
+  launch (or kill) `SimpleMacroRecorder.ahk` — see below. It replaced the
+  one-slot `Macro.Recorder.exe` (source: `Macro.Recorder.ahk`, v2; `F1`
+  records/stops/plays), which stays in the repo but has no hotkey. Work's
+  big `MacroRecorder.ahk` was intentionally not brought over.
 - **Section "Atajos de la laptop personal"**: hotkeys ported from the old
   `!_STARTUP.ahk` that did not collide with work's (AltGr+Numpad media,
   `AltGr+{`/`AltGr+-` max/min, `Alt+F9` Matlab, `Ctrl+Alt+D` PDF fix,
@@ -113,6 +114,29 @@ scripts to launch (also from the Manager's `Aux Scripts…`). `aux-scripts.ini`
 
 Launching goes through the UX launcher with `/Launch` (see `AuxLaunchCmd()`);
 `A_AhkPath` can't be used because it is the v2 exe running the master.
+
+### Simple macro recorder
+
+`SimpleMacroRecorder.ahk` (v2) is a two-slot, no-GUI cut-down of the old
+`Macro.Recorder.v2.ahk` (still on the `work` branch). The master's `Win+F3`
+launches it, or closes it if running.
+
+- `F1` / `F2`: hold (> 0.4 s) and release to record into that slot, either key
+  stops; tap to play, tap again to stop playback. `Win+Shift+F3` copies the
+  recorded slots to `simple-macros\` as timestamped `.ahk` files. These three
+  hotkeys only exist while it runs.
+- Each macro is a standalone v2 script in `%TEMP%\ahk_simple_macro`, played in
+  its own process, which binds the slot key to `ExitApp`. `OnExit` closes any
+  playback still running and deletes that folder, so `Win+F3` (a `WinClose`)
+  clears both slots.
+- Opening a saved macro (double-click) does not play it: without the `play`
+  argument the file relaunches the recorder with its own path, and the recorder
+  loads it into the slot its `F1::`/`F2::ExitApp` line names. `#SingleInstance
+  Force` replaces the running instance; `Cleanup` returns early on the `Single`
+  exit reason and the new instance adopts the temp files, so the other slot
+  survives.
+- Screen coordinates only, no `Sleep` between actions — the old script's
+  defaults. Separate process for the same reason as the old `Macro.Recorder.exe`.
 
 ### Window cycler (windows + browser tabs)
 
