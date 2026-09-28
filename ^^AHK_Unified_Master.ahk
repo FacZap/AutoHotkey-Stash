@@ -1226,6 +1226,9 @@ CcStripAccents(s) {
     SendInput "+a"
 }
 
+; Solo con Chrome al frente. Al estar dentro de un #HotIf, el menú de hotkeys
+; lo apaga con una flag en vez de con Hotkey().
+#HotIf HKEnabled("macro_name.alt") && WinActive("ahk_exe chrome.exe")
 ^!+x::  ; Ctrl+Alt+Shift+X
 {
     SendInput "!+{h}"
@@ -1235,6 +1238,7 @@ CcStripAccents(s) {
     SendInput "{Enter}"
     Sleep 10
 }
+#HotIf
 
 ; ============================================================================
 ; SimpleMacroRecorder.ahk  (Win+F3 -> lo lanza o lo mata)
@@ -2951,8 +2955,8 @@ global gHKSections := [
     { id: "macro_name", title: "Macro de nombre/firma", src: "macro_insta_name.ahk", items: [
         { id: "main", type: "hotkey", hk: "^!x",  label: "Ctrl + Alt + X",
           desc: "Secuencia Esc, Alt+Shift+Fin, Ctrl+A, Ctrl+V, Tab, Enter, Shift+A" },
-        { id: "alt",  type: "hotkey", hk: "^!+x", label: "Ctrl + Alt + Shift + X",
-          desc: "Secuencia Alt+Shift+H, Flecha Abajo, Enter" } ] },
+        { id: "alt",  type: "flag",   hk: "",    label: "Ctrl + Alt + Shift + X (en Chrome)",
+          desc: "Secuencia Alt+Shift+H, Flecha Abajo, Enter (solo con Chrome activo)" } ] },
 
     { id: "wise", title: "Wise Reminder", src: "find_wise_reminder.ahk", items: [
         { id: "find", type: "hotkey", hk: "#z", label: "Win + Z",
