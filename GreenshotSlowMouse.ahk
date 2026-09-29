@@ -14,10 +14,15 @@
 ;  capture was started -- region hotkey, tray icon, context
 ;  menu -- and never has to be kept in sync with Greenshot's
 ;  configured hotkeys.
+;
+;  Every capture starts at slow factor 0 (normal speed). While
+;  the overlay is up, the mouse wheel changes it: wheel down
+;  slows the pointer, wheel up speeds it back up.
 ; ==========================================================
 
-SLOW_PERCENT := 70       ; % of the normal Windows pointer speed
-KILL_ACCEL   := true     ; also switch off "Enhance pointer precision"
+FACTOR_STEP  := 10       ; % of normal speed removed per wheel notch
+FACTOR_MAX   := 90       ; never go slower than 10% of normal speed
+KILL_ACCEL   := true     ; also switch off "Enhance pointer precision" while factor > 0
 POLL_MS      := 75       ; how often to look for the overlay
 MAX_SLOW_MS  := 120000   ; safety net: never stay slowed longer than this
 
@@ -28,7 +33,8 @@ SPI_SETMOUSE      := 0x0004
 SPI_GETMOUSESPEED := 0x0070
 SPI_SETMOUSESPEED := 0x0071
 
-slowActive := false
+slowActive := false      ; true while the overlay is up (even at factor 0)
+slowFactor := 0          ; % of normal speed removed; reset to 0 on every capture
 origSpeed  := 0
 origAccel  := 0          ; Buffer holding the original SPI_GETMOUSE triplet
 slowStart  := 0
@@ -50,36 +56,73 @@ WatchCapture() {
 }
 
 SlowDown() {
-    global slowActive, slowStart, origSpeed, origAccel
-    global SLOW_PERCENT, KILL_ACCEL, SPI_GETMOUSE, SPI_SETMOUSE
+    global slowActive, slowStart, slowFactor, origSpeed, origAccel
+    global KILL_ACCEL, SPI_GETMOUSE
 
     origSpeed := GetMouseSpeed()
-    newSpeed := Round(origSpeed * SLOW_PERCENT / 100)
+    if KILL_ACCEL {
+        origAccel := Buffer(12, 0)
+        DllCall("SystemParametersInfo", "UInt", SPI_GETMOUSE, "UInt", 0, "Ptr", origAccel, "UInt", 0)
+    }
+
+    slowFactor := 0                         ; factor 0 = nothing changed yet
+    slowActive := true
+    slowStart := A_TickCount
+}
+
+; Applies slowFactor on top of the speed/acceleration saved in SlowDown()
+ApplyFactor() {
+    global slowFactor, origSpeed, origAccel, KILL_ACCEL, SPI_SETMOUSE
+
+    newSpeed := Round(origSpeed * (100 - slowFactor) / 100)
     if (newSpeed < 1)
         newSpeed := 1
     SetMouseSpeed(newSpeed)
 
     if KILL_ACCEL {
-        origAccel := Buffer(12, 0)
-        DllCall("SystemParametersInfo", "UInt", SPI_GETMOUSE, "UInt", 0, "Ptr", origAccel, "UInt", 0)
-        flat := Buffer(12, 0)               ; all three zero = 1:1 pointer movement
-        DllCall("SystemParametersInfo", "UInt", SPI_SETMOUSE, "UInt", 0, "Ptr", flat, "UInt", 0)
+        if (slowFactor > 0) {
+            flat := Buffer(12, 0)           ; all three zero = 1:1 pointer movement
+            DllCall("SystemParametersInfo", "UInt", SPI_SETMOUSE, "UInt", 0, "Ptr", flat, "UInt", 0)
+        } else if origAccel {
+            DllCall("SystemParametersInfo", "UInt", SPI_SETMOUSE, "UInt", 0, "Ptr", origAccel, "UInt", 0)
+        }
     }
 
-    slowActive := true
-    slowStart := A_TickCount
+    ToolTip "Slow factor: " slowFactor "%  (speed " newSpeed "/20)"
+    SetTimer HideTip, -1000                 ; named func so each notch restarts the same timer
+}
+
+HideTip() => ToolTip()
+
+ChangeFactor(delta) {
+    global slowFactor, slowStart, FACTOR_MAX
+
+    newFactor := Max(0, Min(FACTOR_MAX, slowFactor + delta))
+    slowStart := A_TickCount                ; user is still working: push the safety net back
+    if (newFactor = slowFactor)
+        return
+    slowFactor := newFactor
+    ApplyFactor()
 }
 
 Restore() {
-    global slowActive, origSpeed, origAccel, KILL_ACCEL, SPI_SETMOUSE
+    global slowActive, slowFactor, origSpeed, origAccel, KILL_ACCEL, SPI_SETMOUSE
 
     if !slowActive
         return
     SetMouseSpeed(origSpeed)
     if (KILL_ACCEL && origAccel)
         DllCall("SystemParametersInfo", "UInt", SPI_SETMOUSE, "UInt", 0, "Ptr", origAccel, "UInt", 0)
+    slowFactor := 0
     slowActive := false
+    ToolTip
 }
+
+; The wheel only belongs to this script while the overlay is up
+#HotIf slowActive
+WheelDown::ChangeFactor(FACTOR_STEP)
+WheelUp::ChangeFactor(-FACTOR_STEP)
+#HotIf
 
 GetMouseSpeed() {
     global SPI_GETMOUSESPEED

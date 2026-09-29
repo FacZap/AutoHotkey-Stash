@@ -61,7 +61,7 @@ same window is reachable from the Manager's `Aux Scripts…` button.
 | `traymond-timer/restore-at-fixed-time.ahk` | v1 | No hotkeys; daily 16:40 restore-all sweep. |
 | `ClipboardOCR.ahk` | v2 | `Ctrl+Alt+O` |
 | `ColdTurkeyActivado.ahk` | v2 | No hotkeys; asks for its config on launch. |
-| `GreenshotSlowMouse.ahk` | v2 | No hotkeys; polls for Greenshot's capture overlay and slows the pointer while it is up. Does not need Greenshot running to start. |
+| `GreenshotSlowMouse.ahk` | v2 | Polls for Greenshot's capture overlay. Each capture starts at slow factor 0; while the overlay is up, the mouse wheel (bound under `#HotIf`) changes it in 10 % steps. Does not need Greenshot running to start. |
 | `KillBrowsers/KillBrowsers.ahk` | v2 | `Ctrl+Alt+K` |
 | `SimpleReminders/SimpleReminders.ahk` | v2 | `Win+Alt+Z` |
 | `RhythmGame.ahk` | v2 | No global hotkeys; its keys are window-scoped. Unticked by default (`rhythm_game=0`) so it never auto-launches with the master. |
@@ -174,6 +174,15 @@ to `RhythmGame.ini`.
   ramping across the session; offbeats and (on HARD) two-lane chords unlock
   partway through, and a minimum gap keeps the result playable.
 - Losing focus pauses the clock rather than eating the notes still falling.
+
+### TabMergerAI (Chrome extension)
+
+`TabMergerAI/` is a Manifest V3 Chrome extension, not AHK. It's plain JS with no build step and is loaded unpacked from `chrome://extensions`. It calls the Claude API with the user's own key to group tabs by topic, either merging all windows into tab groups in one window or giving each group its own window. It can also summarize a set of tabs into an archive page before closing them. `Ctrl+Shift+Y` opens the popup; no AHK script binds that combination.
+
+- It isn't AHK because UIA can't move tabs between windows or read their URLs. The master's UIA tab helpers only find tabs by title. `chrome.tabs` and `chrome.tabGroups` can do both.
+- Claude calls run in the service worker (`background.js`) and their results are kept in `chrome.storage.session`. The popup closes whenever it loses focus, so results can't live there.
+- The API key is in `chrome.storage.local`, not in the repo. `claude.js` uses raw `fetch` because there's no bundler for the SDK, and sends `anthropic-dangerous-direct-browser-access: true`.
+- `plan.js` holds the pure helpers. Test them with `node TabMergerAI/test/plan.test.mjs`. Usage is in `TabMergerAI/README.md`.
 
 ### External utilities (bundled)
 
