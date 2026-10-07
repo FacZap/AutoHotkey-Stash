@@ -273,6 +273,18 @@ ResetEndFlagWait() {
 }
 
 ; ============================================================================
+; Ctrl+|  ->  escribe "true", espera 50 ms y envía Enter
+; ============================================================================
+; SC029 es la tecla '|' en el layout Latinoamericano (es-AR), a la izquierda
+; del 1; se bindea por scancode, igual que Win+Shift+? (SC00C).
+^SC029::
+{
+    SendText "true"
+    Sleep 50
+    Send "{Enter}"
+}
+
+; ============================================================================
 ; move_resize.ahk
 ; ============================================================================
 Alt & LButton::
@@ -2776,9 +2788,11 @@ global gHKSections := [
         { id: "kfz", type: "hotstring", hk: "::kfz", label: "kfz", desc: "Escribe fzapata@iea.com.ar (dispara al terminar la palabra)" },
         { id: "kzf", type: "hotstring", hk: "::kzf", label: "kzf", desc: "Escribe zapatafacundo17@gmail.com (dispara al terminar la palabra)" } ] },
 
-    { id: "chord", title: "Texto rápido (chord)", src: "Nuevo", items: [
+    { id: "chord", title: "Texto rápido", src: "Nuevo", items: [
         { id: "endflag", type: "hotkey", hk: "^!5", label: "Ctrl + Alt + 5, luego E",
-          desc: "Escribe el texto literal %%end flag (la E debe llegar en menos de 2 s)" } ] },
+          desc: "Escribe el texto literal %%end flag (la E debe llegar en menos de 2 s)" },
+        { id: "true", type: "hotkey", hk: "^SC029", label: "Ctrl + |",
+          desc: "Escribe true, espera 50 ms y envía Enter" } ] },
 
     { id: "simbolos", title: "Símbolos rápidos", src: "backwards-slash.ahk · checkmark.ahk · dashes.ahk", items: [
         { id: "slash",   type: "hotkey", hk: "+NumpadDiv", label: "Shift + Numpad /", desc: "Envía la barra invertida \" },
