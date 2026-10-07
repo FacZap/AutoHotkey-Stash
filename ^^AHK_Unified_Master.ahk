@@ -1323,9 +1323,19 @@ for name, defaultPath in OpenProgramPrograms
 
 ^#p::ShowOpenProgramGui()
 
+; Teclas 1..9 (fila y numpad) lanzan el programa N, sólo con la ventana activa.
+HotIfWinActive("Open Program ahk_class AutoHotkeyGUI")
+for i, name in OpenProgramOrder {
+    if (i > 9)
+        break
+    Hotkey(String(i), MakeOpenProgramKeyHandler(name))
+    Hotkey("Numpad" i, MakeOpenProgramKeyHandler(name))
+}
+HotIfWinActive()
+
 ShowOpenProgramGui() {
     global OpenProgramPrograms
-    if WinExist("Open Program ahk_class AutoHotkey") {
+    if WinExist("Open Program ahk_class AutoHotkeyGUI") {
         WinActivate
         return
     }
@@ -1334,19 +1344,24 @@ ShowOpenProgramGui() {
     MyOpenProgramGui.OnEvent("Close", (*) => MyOpenProgramGui.Destroy())
     MyOpenProgramGui.SetFont("s10")
 
-    for name in OpenProgramOrder {
-        path := OpenProgramPrograms[name]
-        MyOpenProgramGui.Add("Button", "x10 y+10 w150", name).OnEvent("Click", MakeOpenProgramLaunchHandler(name, MyOpenProgramGui))
-        MyOpenProgramGui.Add("Button", "x+5 yp w80", "Edit path").OnEvent("Click", MakeOpenProgramEditHandler(name))
+    for i, name in OpenProgramOrder {
+        ; 0x200 = SS_CENTERIMAGE: centra el número verticalmente junto al botón.
+        MyOpenProgramGui.Add("Text", "x10 y+10 w15 h28 Right 0x200", i <= 9 ? i : "")
+        MyOpenProgramGui.Add("Button", "x+5 yp w150 h28", name).OnEvent("Click", MakeOpenProgramLaunchHandler(name, MyOpenProgramGui))
+        MyOpenProgramGui.Add("Button", "x+5 yp w80 h28", "Edit path").OnEvent("Click", MakeOpenProgramEditHandler(name))
     }
 
-    MyOpenProgramGui.Add("Button", "x10 y+15 w235", "Close").OnEvent("Click", (*) => MyOpenProgramGui.Destroy())
+    MyOpenProgramGui.Add("Button", "x10 y+15 w255", "Close").OnEvent("Click", (*) => MyOpenProgramGui.Destroy())
 
     MyOpenProgramGui.Show()
 }
 
 MakeOpenProgramLaunchHandler(name, gui) {
     return (*) => LaunchOpenProgram(name, gui)
+}
+
+MakeOpenProgramKeyHandler(name) {
+    return (*) => LaunchOpenProgram(name, GuiFromHwnd(WinExist("A")))
 }
 
 MakeOpenProgramEditHandler(name) {
