@@ -3,9 +3,10 @@
 ; ============================================================================
 ; SimpleMacroRecorder.ahk — dos slots, sin GUI, sin edición, sin pausas.
 ;
-;   F1 / F2         tocar = reproduce el slot · mantener (> 0.4 s) = graba
-;                   mientras graba, F1 o F2 cortan la grabación
-;                   mientras reproduce, la misma tecla corta la reproducción
+;   F1, F1 / F1, F2         reproduce slot F1 / F2 (la 2ª tecla dentro de 1 s)
+;   F1 mantenido, F1 / F2   graba en slot F1 / F2 (mantener > 0.4 s y soltar)
+;                   mientras graba, F1 corta la grabación (F2 se graba)
+;                   mientras reproduce, la tecla del slot corta la reproducción
 ;   Win+Shift+F3    guarda los slots grabados como .ahk en simple-macros\
 ;   doble clic en un .ahk guardado   lo carga de vuelta en su slot
 ;
@@ -27,6 +28,7 @@ SaveDir   := A_ScriptDir "\simple-macros"
 Slots     := Map("F1", "", "F2", "")   ; tecla -> archivo temporal de la macro
 Recording := ""                        ; tecla del slot que se está grabando
 LogArr    := []
+Pending   := ""                        ; "play" / "rec": F1 espera la 2ª tecla del chord
 
 if (A_Args.Length = 0)
     try DirDelete(TempDir, true)
@@ -36,37 +38,52 @@ for key in Slots                       ; lo que dejó la instancia reemplazada
         Slots[key] := TempDir "\" key ".ahk"
 OnExit(Cleanup)
 
-Hotkey("F1", SlotKey)
-Hotkey("F2", SlotKey)
+Hotkey("F1", F1Key)
+Hotkey("F2", (*) => Chord("F2"), "Off")   ; solo existe como 2ª tecla del chord
 Hotkey("#+F3", SaveSlots)
 
 if (A_Args.Length)
     LoadSaved(A_Args[1])
 else
-    Tip("Simple Macro Recorder: mantener F1/F2 graba, tocar reproduce", 2500)
+    Tip("Simple Macro Recorder: F1 + F1/F2 reproduce, F1 mantenido + F1/F2 graba", 2500)
 return
 
 ;============ Slots =============
 
-SlotKey(key) {
+F1Key(*) {
+    global Pending
     if (Recording != "") {
         StopRecording()
-        KeyWait(key)
+        KeyWait("F1")
         return
     }
-    if KeyWait(key, "T0.4") {
-        Play(key)
-        return
-    }
-    Tip("REC " key " — soltá para empezar")
+    if (Pending != "")
+        return Chord("F1")
+    Pending := KeyWait("F1", "T0.4") ? "play" : "rec"
+    Tip(Pending = "rec" ? "● REC → F1 / F2" : "▶ PLAY → F1 / F2")
+    KeyWait("F1")
+    Hotkey("F2", "On")
+    SetTimer(ChordEnd, -1000)
+}
+
+Chord(key) {
+    mode := Pending
+    ChordEnd()
     KeyWait(key)
-    StartRecording(key)
+    mode = "rec" ? StartRecording(key) : Play(key)
+}
+
+ChordEnd() {
+    global Pending := ""
+    SetTimer(ChordEnd, 0)
+    Hotkey("F2", "Off")
+    Tip()
 }
 
 StartRecording(key) {
     global Recording := key, LogArr := []
     SetHotkeys(true)
-    Tip("● REC " key "  (F1/F2 para terminar)")
+    Tip("● REC " key "  (F1 para terminar)")
 }
 
 StopRecording() {
@@ -87,7 +104,7 @@ StopRecording() {
 
 Play(key) {
     if (Slots[key] = "" || !FileExist(Slots[key])) {
-        Tip(key " está vacío — mantenelo para grabar", 1500)
+        Tip(key " está vacío — mantené F1 y después " key " para grabar", 1500)
         return
     }
     Run('"' A_AhkPath '" "' Slots[key] '" play')
@@ -166,13 +183,12 @@ Tip(s := "", ms := 0) {
 
 ;============ Grabación =============
 
-; Un hook ~* por cada tecla mientras se graba. F1/F2 quedan fuera: son las
-; teclas de slot y cortan la grabación.
+; Un hook ~* por cada tecla mientras se graba. F1 queda fuera: corta la grabación.
 SetHotkeys(on) {
     f := on ? "On" : "Off"
     Loop 254 {
         vk := Format("vk{:X}", A_Index)
-        if !(GetKeyName(vk) ~= "^(?i:|Control|Alt|Shift|F1|F2)$")
+        if !(GetKeyName(vk) ~= "^(?i:|Control|Alt|Shift|F1)$")
             Hotkey("~*" vk, LogKey, f)
     }
     for k in ["NumpadEnter", "Home", "End", "PgUp", "PgDn", "Left", "Right", "Up", "Down", "Delete", "Insert"]

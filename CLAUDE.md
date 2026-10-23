@@ -105,8 +105,10 @@ The master's Manager GUI launches it via `OpenMacroRecorder()`.
 `Macro.Recorder.v2.ahk` (still on the `work` branch). The master's `Win+F3`
 launches it, or closes it if running.
 
-- `F1` / `F2`: hold (> 0.4 s) and release to record into that slot, either key
-  stops; tap to play, tap again to stop playback. `Win+Shift+F3` copies the
+- Chords led by `F1`: tap `F1` then, within 1 s, `F1`/`F2` plays that slot;
+  hold `F1` (> 0.4 s), release, then `F1`/`F2` records into it. `F1` stops
+  recording (`F2` gets recorded); `F2` is only a hotkey during the 1 s window.
+  The slot key stops its playback. `Win+Shift+F3` copies the
   recorded slots to `simple-macros\` as timestamped `.ahk` files. These three
   hotkeys only exist while it runs.
 - Each macro is a standalone v2 script in `%TEMP%\ahk_simple_macro`, played in
