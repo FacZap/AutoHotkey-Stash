@@ -443,7 +443,7 @@ IdleCheck2() {
 ;   25 (minutos) | 90m | 2h | 1h30 | 45s | @17:45 (hora de reloj) | 0 (cancela
 ;   el timer pendiente).  La inactividad sigue siendo un campo aparte en minutos.
 global sTimerLastDelay := "30s"   ; último tiempo tipeado en la GUI
-global inactivityMinutes := 10    ; auto-envío por inactividad; 0 = desactivado
+global inactivityMinutes := 0    ; auto-envío por inactividad; 0 = desactivado
 global inactivityFired := false   ; evita reenvíos dentro del mismo período inactivo
 global waitingForSTimerKey := false ; true tras Win+Alt+U, esperando la "I" (< 1 s)
 global waitingForATimerKey := false ; true tras Win+Alt+U, esperando la "A" (< 2 s)
