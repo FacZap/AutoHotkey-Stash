@@ -1815,6 +1815,8 @@ CheckWinReleased() {
 ;   Win+Alt+U, F4 = timer para CERRAR la pestaña activa del navegador.
 ;   Win+Alt+U, F4 F4 = timer para CERRAR la ventana activa (dos F4 seguidos;
 ;                   el acorde Win+Alt+U vive en la sección "Timer -> Win+Alt+S").
+;   Win+Alt+F6    = timer para EJECUTAR un comando pegado, como en Win+R
+;                   (programa, ruta, URL, "cmd /c ...").
 ;   Win+Shift+F6  = GUI de administración: ver los timers corriendo (los de
 ;                   abrir y los de cerrar, ventanas y pestañas), sumar o restar
 ;                   tiempo, ejecutarlos ya o eliminarlos.
@@ -1846,6 +1848,71 @@ SetTimer(CheckTimedWindows, 500)
 #F6::NewTimedWindowTimer()
 ^#F6::NewTimedTabTimer()
 #+F6::ShowTimedWindowsGui()
+#!F6::OpenTimedRunGui()
+
+; ---- Alta de un timer que ejecuta un comando (Win+Alt+F6) ----
+;      items run:  Map("id","kind"="run","action"="run","hwnd"=0,"title"=comando,"due","aot")
+OpenTimedRunGui() {
+    global gTimedLastDelay
+    g := Gui("+AlwaysOnTop +ToolWindow", "Ejecutar con timer")
+    g.MarginX := 14
+    g.MarginY := 12
+    g.SetFont("s9", "Segoe UI")
+    g.Add("Text", "xm", "Comando a ejecutar (como en Win+R):")
+    cmdEdit := g.Add("Edit", "xm y+4 w380")
+    g.Add("Text", "xm y+12", "Ejecutarlo en:")
+    delayEdit := g.Add("Edit", "xm y+4 w110", gTimedLastDelay)
+    g.Add("Text", "x+8 yp+4 cGray", "minutos")
+    g.Add("Text", "xm y+12 w380 cGray"
+        , "También acepta:  90m  2h  1h30  45s  @17:45 (hora de reloj)`n"
+          . "0 lo ejecuta ahora mismo.")
+    startBtn := g.Add("Button", "xm y+14 w180 Default", "Iniciar cuenta regresiva")
+    cancelBtn := g.Add("Button", "x+10 w130", "Cancelar")
+    startBtn.OnEvent("Click", (*) => TimedRunStart(g, cmdEdit, delayEdit))
+    cancelBtn.OnEvent("Click", (*) => g.Destroy())
+    g.OnEvent("Close", (*) => g.Destroy())
+    g.OnEvent("Escape", (*) => g.Destroy())
+    g.Show()
+    cmdEdit.Focus()
+}
+
+TimedRunStart(g, cmdEdit, delayEdit) {
+    global gTimedWindows, gTimedNextId, gTimedLastDelay
+    cmd := Trim(cmdEdit.Value)
+    if (cmd = "") {
+        g.Opt("+OwnDialogs")
+        MsgBox "Pegá el comando a ejecutar.", "Ejecutar con timer", 48
+        return
+    }
+    typed := Trim(delayEdit.Value)
+    totalSec := ParseTimedDelaySeconds(typed)
+    if (totalSec < 0) {
+        g.Opt("+OwnDialogs")
+        MsgBox 'No entendí "' typed '".`n`nProbá:  25   90m   2h   1h30   45s   @17:45'
+            , "Ejecutar con timer", 48
+        return
+    }
+    if (totalSec > 0)                      ; un "0" no se guarda como prefill
+        gTimedLastDelay := typed
+    item := Map(
+        "id", gTimedNextId,
+        "kind", "run",
+        "action", "run",
+        "hwnd", 0,
+        "title", cmd,
+        "due", A_TickCount + totalSec * 1000,
+        "aot", false)
+    g.Destroy()
+    if (totalSec = 0) {
+        RunTimedItem(item)
+        return
+    }
+    gTimedWindows.Push(item)
+    gTimedNextId += 1
+    TrayTip "Ejecución programada", "Se ejecuta en " FormatSeconds(totalSec)
+        . "`n" cmd "`nTimers activos: " gTimedWindows.Length, 2
+    RebuildTimedWindowsGui()
+}
 
 ; action = "open" (Win+F6) | "close" (Win+Alt+U, F4 F4)
 NewTimedWindowTimer(action := "open") {
@@ -2088,6 +2155,16 @@ CheckTimedWindows() {
 
 ; Ejecuta el item vencido: lo abre o lo cierra, según kind y action.
 RunTimedItem(item) {
+    if (item["kind"] = "run") {
+        ; Directorio de trabajo = perfil del usuario, el mismo que usa Win+R.
+        try {
+            Run(item["title"], EnvGet("USERPROFILE"))
+            TrayTip "Ejecutado", item["title"], 2
+        } catch as e {
+            TrayTip "No se pudo ejecutar", item["title"] "`n" e.Message, 2
+        }
+        return
+    }
     isClose := (item["action"] = "close")
     if (item["kind"] = "tab") {
         if isClose
@@ -2253,6 +2330,8 @@ FindTimedTabByName(name, action := "open") {
 
 ; Texto de la columna "Tipo" de la GUI de administración.
 TimedItemKindLabel(item) {
+    if (item["kind"] = "run")
+        return "Ejecutar"
     return (item["action"] = "close" ? "Cerrar " : "Abrir ")
          . (item["kind"] = "tab" ? "pestaña" : "ventana")
 }
@@ -2282,7 +2361,7 @@ ShowTimedWindowsGui() {
     g.MarginY := 10
     g.SetFont("s9", "Segoe UI")
     gTimedGuiHdr := g.Add("Text", "xm w540", "")
-    lv := g.Add("ListView", "xm w540 r8 Grid -Multi", ["#", "Restante", "Tipo", "Ventana / pestaña", "Top"])
+    lv := g.Add("ListView", "xm w540 r8 Grid -Multi", ["#", "Restante", "Tipo", "Ventana / pestaña / comando", "Top"])
     lv.ModifyCol(1, 30)
     lv.ModifyCol(2, 70)
     lv.ModifyCol(3, 100)   ; entran "Cerrar ventana" / "Cerrar pestaña"
@@ -2348,7 +2427,7 @@ RebuildTimedWindowsGui() {
     gTimedGuiLV.Opt("+Redraw")
     if (sel >= 1 && sel <= gTimedWindows.Length)
         gTimedGuiLV.Modify(sel, "Select Focus")
-    hint := "   ·  Win+F6 abrir ventana · Ctrl+Win+F6 abrir pestaña · Win+Alt+U + F4 cerrar"
+    hint := "   ·  Win+F6 abrir ventana · Ctrl+Win+F6 abrir pestaña · Win+Alt+U + F4 cerrar · Win+Alt+F6 ejecutar"
     gTimedGuiHdr.Text := gTimedWindows.Length
         ? "Timers corriendo: " gTimedWindows.Length hint
         : "No hay timers corriendo" hint
@@ -2908,7 +2987,8 @@ global gHKSections := [
     { id: "timed_windows", title: "Ventanas con timer", src: "Nuevo", items: [
         { id: "save",  type: "hotkey", hk: "#F6",  label: "Win + F6",         desc: "Guarda la ventana activa y elige en cuánto tiempo reaparece (25, 90m, 2h, 1h30, 45s, @17:45)" },
         { id: "tab",   type: "hotkey", hk: "^#F6", label: "Ctrl + Win + F6",  desc: "Guarda la pestaña activa del navegador y elige en cuánto tiempo vuelve (25, 90m, 2h, 1h30, 45s, @17:45)" },
-        { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo, de abrir y de cerrar (sumar/restar tiempo, ejecutar ya, eliminar)" } ] },
+        { id: "run",   type: "hotkey", hk: "#!F6", label: "Win + Alt + F6",   desc: "Ejecuta un comando estilo Win+R pasado un tiempo (25, 90m, 2h, 1h30, 45s, @17:45)" },
+        { id: "admin", type: "hotkey", hk: "#+F6", label: "Win + Shift + F6", desc: "Administra los timers corriendo, de abrir, cerrar y ejecutar (sumar/restar tiempo, ejecutar ya, eliminar)" } ] },
 
     { id: "timed_close", title: "Cerrar ventanas y pestañas con timer", src: "Nuevo", items: [
         { id: "tab", type: "flag", hk: "", label: "Win + Alt + U, luego F4",
