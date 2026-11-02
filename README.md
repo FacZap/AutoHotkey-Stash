@@ -10,13 +10,11 @@ Colección de scripts de AutoHotkey que uso o he usado, o en los que estoy traba
 4. `Ctrl+Alt+R` abre el AHK Manager (recargar, suspender, pausar o cerrar scripts).
 
 ## Guía de hotkeys
-
-> **Todos los hotkeys, hotstrings y lo que hace cada uno están en la guía:
-> [`AHK_Unified_Master_Referencia.pdf`](AHK_Unified_Master_Referencia.pdf)
-> (o la versión HTML, [`AHK_Unified_Master_Referencia.html`](AHK_Unified_Master_Referencia.html), para abrir en el navegador).
-> Recomiendo empezar por ahí para ver qué contiene el repo.**
->
-> Con el master (^^AHK_Unified_Master.ahk) corriendo, `Win+Shift+?` abre la misma guía en una ventana flotante, con buscador.
+**Todos los hotkeys, hotstrings y lo que hace cada uno están en la guía:
+[`AHK_Unified_Master_Referencia.pdf`](AHK_Unified_Master_Referencia.pdf)
+(o la versión HTML, [`AHK_Unified_Master_Referencia.html`](AHK_Unified_Master_Referencia.html), para abrir en el navegador).
+Recomiendo empezar por ahí para ver qué contiene el repo.**
+Con el master (^^AHK_Unified_Master.ahk) corriendo, `Win+Shift+?` abre la misma guía en una ventana flotante, con buscador.
 
 ## Qué hay
 
