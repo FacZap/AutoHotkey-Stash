@@ -1,0 +1,254 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Running Scripts
+
+AutoHotkey scripts are run directly — there is no build step.
+
+```powershell
+# Run a script (requires AutoHotkey installed)
+AutoHotkey.exe .\^^AHK_Unified_Master.ahk
+
+# Reload a running script from within AHK (send Reload message via AHK_Manager GUI)
+# Ctrl+Alt+R opens the AHK Manager GUI for managing all running scripts
+```
+
+To test a modified script: terminate the running instance, then launch the updated file. The AHK_Manager GUI (AHK_Manager.ahk) provides Reload/Suspend/Pause/Kill controls for any running AHK process.
+
+## Architecture
+
+### Primary entry point
+
+`^^AHK_Unified_Master.ahk` is the consolidated master script (~1000 lines, AHK v2.0.18+). It replaces 23+ individual scripts and is the preferred way to run all automation in a single process. Individual `.ahk` files still exist alongside it for reference, development, or standalone use.
+
+### Why two forms exist (individual scripts + unified master)
+
+AHK v1 and v2 cannot run in the same process. The master was created to consolidate everything into one v2 executable. Individual scripts are a mix of v1 and v2 — those still being maintained individually are v2; v1 ones are candidates for migration into the master.
+
+### Script categories
+
+| Category | Example scripts |
+|---|---|
+| Keyboard/input remapping | `arrows-keystrokes`, `dashes`, `backwards-slash`, `right_tab`, `checkmark` |
+| Text automation | `autodate` (hotstrings like `k+ddd`), `ConvertCase`, `createTXT`, `logger`, `ClipboardOCR` |
+| Window management | `Cycler_Windows_v3`, `move_resize`, `resize`, `kill_all` |
+| System control | `brightness` (WMI), `volume`, `mute`, `pauseplay` |
+| App launchers | `find_wise_reminder`, `open_hourglass`, `url_chrome` |
+| Time utilities | `calendar`, `Sleep_Timer`, `Show_Time` |
+| Meta / management | `AHK_Manager`, `_Check_Starters`, `^RUN_starters` |
+| Auxiliary (separate processes) | `ClipboardOCR`, `ColdTurkeyActivado`, `GreenshotSlowMouse`, `KillBrowsers/`, `SimpleReminders/`, `traymond-timer/` |
+| Macro recording | `MacroRecorder` |
+| Game | `RhythmGame` |
+
+### Management scripts
+
+- `AHK_Manager.ahk` — GUI dashboard; lists running AHK processes with Reload/Suspend/Pause/Kill buttons. Triggered via `Ctrl+Alt+R`. Its `Aux Scripts…`
+  button reopens the auxiliary-script launcher (below).
+- `_Check_Starters.ahk` — status-checker GUI for 20+ configured scripts/programs.
+- `^RUN_starters.ahk` — auto-launches RBTray.exe and Wise Reminder at startup.
+- `^CLOSE_starters.ahk` — mass-terminates managed scripts.
+
+### Auxiliary script launcher
+
+On startup the master opens a GUI (`ShowAuxScriptsGui()`) that offers the eight
+scripts that live outside it — tick any subset, or all, and launch them. The
+same window is reachable from the Manager's `Aux Scripts…` button.
+
+| Script | v | Notes |
+|---|---|---|
+| `traymond-timer/traymond-timer.ahk` | v1 | `Win+Shift+Z` hide + countdown. Needs Traymond.exe running or it exits with a MsgBox, so the launcher checks first. |
+| `traymond-timer/restore-at-fixed-time.ahk` | v1 | No hotkeys; daily 16:40 restore-all sweep. |
+| `ClipboardOCR.ahk` | v2 | `Ctrl+Alt+O` OCR, `Ctrl+Alt+I` pin the image |
+| `ColdTurkeyActivado.ahk` | v2 | No hotkeys; asks for its config on launch. |
+| `GreenshotSlowMouse.ahk` | v2 | Polls for Greenshot's capture overlay. Each capture starts at slow factor 0; while the overlay is up, the mouse wheel (bound under `#HotIf`) changes it in 10 % steps. Does not need Greenshot running to start. |
+| `KillBrowsers/KillBrowsers.ahk` | v2 | `Ctrl+Alt+K` |
+| `SimpleReminders/SimpleReminders.ahk` | v2 | `Win+Alt+Z` |
+| `RhythmGame.ahk` | v2 | No global hotkeys; its keys are window-scoped. Unticked by default (`rhythm_game=0`) so it never auto-launches with the master. |
+
+- None of these can be merged into the master: the two traymond scripts are
+  AHK v1 (v1 and v2 cannot share a process) and the v2 ones carry their own
+  hotkeys and state. `RhythmGame.ahk` additionally runs a 60 fps render timer,
+  which has no business in the master's process. They run as separate
+  processes, like `MacroRecorder.ahk`.
+- Launching invokes the AutoHotkey UX launcher, which reads each script's
+  `#Requires` and picks v1 or v2. `A_AhkPath` cannot be used — it is the v2 exe
+  running the master. The command comes from the `.ahk` file association in the
+  registry, with `/Launch` inserted before the path: without that switch the
+  launcher stays alive waiting on its child (it only exits early when its parent
+  is `explorer.exe`), which left one idle `AutoHotkeyUX.exe` per aux script in
+  the Manager's list and made `Reload All` relaunch those scripts.
+- Already-running scripts are detected by their (hidden) window title,
+  `<full path> - AutoHotkey v<version>`, and skipped.
+- `aux-scripts.ini` stores the ticked set (`[Selection]`) and what startup
+  should do (`[Startup] Mode` = `ask` | `auto` | `off`, set from the same
+  window). Stopping a script is the Manager's `Kill` button.
+
+### Macro recorder
+
+`MacroRecorder.ahk` (v2) records input into up to 12 slots. It must stay a
+**separate process** from the master: while recording it registers a `~*vk`
+hotkey for every virtual key, which would collide with the master's bindings.
+The master's Manager GUI launches it via `OpenMacroRecorder()`.
+
+- Macros are stored as standalone runnable `.ahk` scripts in `macros\`;
+  playback launches one in its own process.
+- `macros\macros.ini` is the slot index and settings file.
+- Defaults: `Win+Alt+F1..F12` play, `Win+Alt+Shift+F1..F12` record, `Alt+F1` GUI,
+  `Ctrl+Alt+Esc` panic stop. `Ctrl+Alt+F7/F9/F10` were unavailable — the master
+  already uses them.
+- Full usage: `README_MacroRecorder.md`. Remaining work: `TODO_MacroRecorder.md`.
+
+### Simple macro recorder
+
+`SimpleMacroRecorder.ahk` (v2) is a two-slot, no-GUI cut-down of the old
+`Macro.Recorder.v2.ahk` (still on the `work` branch). The master's `Win+F3`
+launches it, or closes it if running.
+
+- Chords led by `F1`: tap `F1` then, within 1 s, `F1`/`F2` plays that slot;
+  hold `F1` (> 0.4 s), release, then `F1`/`F2` records into it. `F1` stops
+  recording (`F2` gets recorded); `F2` is only a hotkey during the 1 s window.
+  The slot key stops its playback. `Win+Shift+F3` copies the
+  recorded slots to `simple-macros\` as timestamped `.ahk` files. These three
+  hotkeys only exist while it runs.
+- Each macro is a standalone v2 script in `%TEMP%\ahk_simple_macro`, played in
+  its own process, which binds the slot key to `ExitApp`. `OnExit` closes any
+  playback still running and deletes that folder, so `Win+F3` (a `WinClose`)
+  clears both slots.
+- Opening a saved macro (double-click) does not play it: without the `play`
+  argument the file relaunches the recorder with its own path, and the recorder
+  loads it into the slot its `F1::`/`F2::ExitApp` line names. `#SingleInstance
+  Force` replaces the running instance; `Cleanup` returns early on the `Single`
+  exit reason and the new instance adopts the temp files, so the other slot
+  survives.
+- Screen coordinates only, no `Sleep` between actions — the old script's
+  defaults. Separate process for the same reason as `MacroRecorder.ahk`.
+
+### Window cycler (windows + browser tabs)
+
+The cycler in the master keeps **one** list that holds both windows and browser
+tabs, cycled together by `Win+F4` in insertion order. `Ctrl+Win+F4` filters what
+that cycle visits (all / tabs only / windows only) without touching the list.
+
+- Entries are Maps, not bare hwnds: `Map("kind","win","hwnd",h)` or
+  `Map("kind","tab","hwnd",h,"exe",e,"tab",normalizedTitle)`.
+- The tab keys are deliberately the ones `FindTimedTabTarget()` reads, so the
+  cycler **reuses the timed-tab UIA layer verbatim** — `GetActiveBrowserTabName`,
+  `NormalizeTabName`, `FindTimedTabTarget`, `ActivateTimedTab` — and contains no
+  UIA code of its own. That dependency runs from the cycler section up into the
+  "Ventanas con timer" section; changing those helpers affects both features.
+- `CleanClosedWindows()` prunes **only** window entries. A tab's stored hwnd goes
+  stale whenever the tab is dragged to another window, and relocating it is
+  exactly what `FindTimedTabTarget` does — so tabs are pruned lazily, only when
+  the cycler jumps to one and cannot find it. This also keeps the cost to one
+  UIA scan per keypress rather than one per saved entry.
+- The standalone `Cycler_Windows_v3.ahk` is AHK v1 and stays window-only:
+  `UIA.ahk` is v2-only, so the tab half cannot be ported to it.
+
+### Clipboard OCR
+
+`ClipboardOCR.ahk` (v2, standalone) OCRs the image in the clipboard with `Ctrl+Alt+O`
+and shows the text in an editable GUI (copy / save .txt / save .png / discard).
+Both save buttons write timestamped files to the Windows Downloads folder.
+`Ctrl+Alt+I` pins a snapshot of the clipboard image in an always-on-top
+window (one per press, `Esc` closes it, shrunk to fit the screen).
+
+It depends on `OCR.ahk`, a vendored copy of Descolada's wrapper around the
+Windows.Media.Ocr UWP API — no external OCR engine or install needed.
+
+### Rhythm game
+
+`RhythmGame.ahk` (v2, standalone) is a 4-lane osu!mania-style speed test: a
+4-beat count-in plus exactly 25 s of play, so no session reaches 30 s. Three
+difficulties (100 / 132 / 166 BPM); best score and accuracy per difficulty go
+to `RhythmGame.ini`.
+
+- **No global hotkeys.** `D F J K` and the menu keys are registered under
+  `HotIfWinActive` against the game's own hwnd, so they do not exist outside
+  its window and cannot collide with the master.
+- Drawing is plain GDI into an offscreen backbuffer, blitted in one `BitBlt`
+  with `WM_ERASEBKGND` suppressed — no Gdip library, no flicker.
+- Judgement uses `QueryPerformanceCounter`, not `A_TickCount`: the 40 ms
+  PERFECT window needs better than the latter's ~15 ms resolution.
+  `timeBeginPeriod(1)` keeps the 60 fps timer honest.
+- `SoundBeep` blocks the calling thread, which would stall the frame loop, so
+  the script generates four short WAVs into `%TEMP%\ahk_rhythm` on first run
+  and plays them through `winmm\PlaySound` asynchronously.
+- Charts are generated per run on an eighth-note grid, with note probability
+  ramping across the session; offbeats and (on HARD) two-lane chords unlock
+  partway through, and a minimum gap keeps the result playable.
+- Losing focus pauses the clock rather than eating the notes still falling.
+
+### TabMergerAI (Chrome extension)
+
+`TabMergerAI/` is a Manifest V3 Chrome extension, not AHK. It's plain JS with no build step and is loaded unpacked from `chrome://extensions`. It calls the Claude API with the user's own key to group tabs by topic, either merging all windows into tab groups in one window or giving each group its own window. It can also summarize a set of tabs into an archive page before closing them. `Ctrl+Shift+Y` opens the popup; no AHK script binds that combination.
+
+- It isn't AHK because UIA can't move tabs between windows or read their URLs. The master's UIA tab helpers only find tabs by title. `chrome.tabs` and `chrome.tabGroups` can do both.
+- Claude calls run in the service worker (`background.js`) and their results are kept in `chrome.storage.session`. The popup closes whenever it loses focus, so results can't live there.
+- The API key is in `chrome.storage.local`, not in the repo. `claude.js` uses raw `fetch` because there's no bundler for the SDK, and sends `anthropic-dangerous-direct-browser-access: true`.
+- `plan.js` holds the pure helpers. Test them with `node TabMergerAI/test/plan.test.mjs`. Usage is in `TabMergerAI/README.md`.
+
+### External utilities (bundled)
+
+- `RBTray-4_3/` — Minimize-to-tray utility (C++ binary + source). Launched by `^RUN_starters.ahk`.
+- `tigerlilys-Screen-Dimmer-master/` — Multi-monitor screen dimmer (AHK v2, standalone).
+
+### Archived scripts
+
+- `not in use/` — 11 obsolete/replaced scripts, kept for reference.
+- `broken/` — 2 non-functional scripts pending fix or deletion.
+- `semi-uso/` — 4 partially-used scripts.
+
+## Key Patterns
+
+**Hotkey binding conventions:**
+- `Win+Key` — primary utilities (brightness, calendar, window cycling)
+- `Ctrl+Alt+Key` — secondary actions (text/keyboard nav, media control)
+- `Win+Numpad` — quick media/numeric actions
+- `k+xxx` hotstrings — auto-expand to dates/timestamps (`k+ddd`, `k+hhh`, `k+xxx`)
+- `Alt+MouseButton` — window move/resize
+
+**GUI pattern:** Scripts that need user interaction create AHK Gui objects inline (no external framework). Examples: calendar picker, file creator, conversation counter, window cycler list.
+
+**WMI usage:** `brightness.ahk` controls monitor brightness via `WmiMonitorBrightness` / `wmiMonitorBrightNessMethods` COM queries — not via Windows API.
+
+**Inter-process messaging:** `AHK_Manager.ahk` uses `PostMessage` to send control signals (Reload, Suspend, Pause) to other AHK processes by hwnd.
+
+**Clipboard manipulation:** `Ctrl+F2` opens a case-converter GUI (in the master, and also as the standalone `ConvertCase.ahk`): it grabs the selection, previews all 25 styles (text / code / file-name families) and pastes the chosen one back. It saves/restores the clipboard around both the copy and the paste to avoid clobbering user content. In the master the functions carry a `Cc` prefix — the natural names (`Join`, `Flash`, `ToUpperCase`) are too generic for a shared file; the standalone script is the same code without it.
+
+## Hardcoded Paths to Be Aware Of
+
+Several scripts contain machine-specific absolute paths:
+- VS Code: `%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe`
+- Wise Reminder: `C:\Program Files (x86)\Wise\Wise Reminder\WiseReminder.exe`
+- RBTray: `C:\autohotkey\RBTray-4_3\64bit\RBTray.exe`
+
+When modifying scripts that launch external programs, verify these paths are still valid for the target machine.
+
+## Reference Documentation
+
+Three files, all describing the same thing — every hotkey and hotstring in the
+unified master, in a dark-themed table — useful for checking conflicts before
+adding a binding:
+
+| File | Role |
+|---|---|
+| `AHK_Unified_Master_Referencia_ie.html` | What `Win+Shift+?` actually opens. Plain CSS (no `var()`) because the ActiveX control uses the IE engine. Also has the search box / filter chips. |
+| `AHK_Unified_Master_Referencia.html` | Same content, modern CSS. The source the PDF is printed from. |
+| `AHK_Unified_Master_Referencia.pdf` | Printed from the modern HTML. |
+
+- **The two HTMLs must be edited together.** They drifted once and each ended up
+  missing a section the other had; a section- and key-level diff of the two is the
+  cheapest way to catch it.
+- The appendix at the end covers the auxiliary scripts, marked with an `aux` pill.
+  Those hotkeys only exist while the script in question is running, which the
+  appendix's intro note says explicitly.
+- Regenerate the PDF after editing the modern HTML:
+
+```powershell
+& "C:\Program Files\Google\Chrome\Application\chrome.exe" --headless=new --disable-gpu --no-pdf-header-footer --virtual-time-budget=8000 "--print-to-pdf=C:\autohotkey\AHK_Unified_Master_Referencia.pdf" "file:///C:/autohotkey/AHK_Unified_Master_Referencia.html"
+```
+
+  The `@media print` block in both HTMLs is what keeps the dark theme (via
+  `print-color-adjust: exact`), hides the search bar and stops rows splitting
+  across pages.

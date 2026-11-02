@@ -1,0 +1,17 @@
+# Live reminder database: personal data, and SimpleReminders.ahk rewrites it in
+# full on every create / edit / snooze / delete.
+SimpleReminders/reminders.csv
+aux-scripts.ini
+
+# Macros saved by SimpleMacroRecorder (Win+Shift+F3): personal recordings.
+simple-macros/
+
+# Personal data kept out of the public repo: emails (kfz/kzf), sheet URL.
+personal.ahk
+url_chrome.ini
+
+# Per-machine state: MacroRecorder slots, game scores, scratch and backups.
+macros/
+RhythmGame.ini
+temp/
+backup/

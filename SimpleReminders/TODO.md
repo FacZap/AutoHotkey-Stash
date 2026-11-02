@@ -1,0 +1,1 @@
+[X] Si se está snoozeando un item com "Snooze" > "Custom...", prevenir que "se active" ese item (que se "despierte" y aparezca el popup de su Reminder)
