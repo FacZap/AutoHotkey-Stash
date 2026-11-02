@@ -10,8 +10,14 @@ simple-macros/
 personal.ahk
 url_chrome.ini
 
-# Per-machine state: MacroRecorder slots, game scores, scratch and backups.
+# Per-machine state: MacroRecorder slots, game scores, scratch.
 macros/
 RhythmGame.ini
 temp/
+
+# Archived scripts: old individual scripts the master covers, broken and
+# half-used ones, backups. Kept on disk only.
+not in use/
+semi-uso/
+broken/
 backup/

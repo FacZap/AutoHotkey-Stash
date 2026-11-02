@@ -14,19 +14,23 @@ AutoHotkey.exe .\^^AHK_Unified_Master.ahk
 # Ctrl+Alt+R opens the AHK Manager GUI for managing all running scripts
 ```
 
-To test a modified script: terminate the running instance, then launch the updated file. The AHK_Manager GUI (AHK_Manager.ahk) provides Reload/Suspend/Pause/Kill controls for any running AHK process.
+To test a modified script: terminate the running instance, then launch the updated file. The AHK Manager GUI (a section of the master, `Ctrl+Alt+R`) provides Reload/Suspend/Pause/Kill controls for any running AHK process.
 
 ## Architecture
 
 ### Primary entry point
 
-`^^AHK_Unified_Master.ahk` is the consolidated master script (~1000 lines, AHK v2.0.18+). It replaces 23+ individual scripts and is the preferred way to run all automation in a single process. Individual `.ahk` files still exist alongside it for reference, development, or standalone use.
+`^^AHK_Unified_Master.ahk` is the consolidated master script (~1000 lines, AHK v2.0.18+). It replaces 23+ individual scripts and is the preferred way to run all automation in a single process. The individual scripts it replaced were moved to `not in use/old scripts/`, which is gitignored (local only, kept for reference).
 
 ### Why two forms exist (individual scripts + unified master)
 
 AHK v1 and v2 cannot run in the same process. The master was created to consolidate everything into one v2 executable. Individual scripts are a mix of v1 and v2 — those still being maintained individually are v2; v1 ones are candidates for migration into the master.
 
 ### Script categories
+
+Names are the original scripts. Apart from the auxiliary ones, `MacroRecorder`,
+`RhythmGame` and `Sleep_Timer`, they are now sections of the master; the
+originals are in `not in use/old scripts/`.
 
 | Category | Example scripts |
 |---|---|
@@ -43,11 +47,11 @@ AHK v1 and v2 cannot run in the same process. The master was created to consolid
 
 ### Management scripts
 
-- `AHK_Manager.ahk` — GUI dashboard; lists running AHK processes with Reload/Suspend/Pause/Kill buttons. Triggered via `Ctrl+Alt+R`. Its `Aux Scripts…`
+- AHK Manager (master section, from `AHK_Manager.ahk`) — GUI dashboard; lists running AHK processes with Reload/Suspend/Pause/Kill buttons. Triggered via `Ctrl+Alt+R`. Its `Aux Scripts…`
   button reopens the auxiliary-script launcher (below).
-- `_Check_Starters.ahk` — status-checker GUI for 20+ configured scripts/programs.
-- `^RUN_starters.ahk` — auto-launches RBTray.exe and Wise Reminder at startup.
-- `^CLOSE_starters.ahk` — mass-terminates managed scripts.
+- The master's startup section (from `^RUN_starters.ahk`) launches RBTray.exe and Wise Reminder.
+- `_Check_Starters.ahk`, `^RUN_starters.ahk`, `^CLOSE_starters.ahk` and `^RUN_MANAGER.ahk`
+  managed the old individual scripts; archived in `not in use/old scripts/`.
 
 ### Auxiliary script launcher
 
@@ -142,7 +146,7 @@ that cycle visits (all / tabs only / windows only) without touching the list.
   exactly what `FindTimedTabTarget` does — so tabs are pruned lazily, only when
   the cycler jumps to one and cannot find it. This also keeps the cost to one
   UIA scan per keypress rather than one per saved entry.
-- The standalone `Cycler_Windows_v3.ahk` is AHK v1 and stays window-only:
+- The archived standalone `Cycler_Windows_v3.ahk` is AHK v1 and stays window-only:
   `UIA.ahk` is v2-only, so the tab half cannot be ported to it.
 
 ### Clipboard OCR
@@ -190,14 +194,18 @@ to `RhythmGame.ini`.
 
 ### External utilities (bundled)
 
-- `RBTray-4_3/` — Minimize-to-tray utility (C++ binary + source). Launched by `^RUN_starters.ahk`.
+- `RBTray-4_3/` — Minimize-to-tray utility (C++ binary + source). Launched at startup by the master.
 - `tigerlilys-Screen-Dimmer-master/` — Multi-monitor screen dimmer (AHK v2, standalone).
 
 ### Archived scripts
 
-- `not in use/` — 11 obsolete/replaced scripts, kept for reference.
-- `broken/` — 2 non-functional scripts pending fix or deletion.
-- `semi-uso/` — 4 partially-used scripts.
+All gitignored: they exist only on this machine, not in the repo.
+
+- `not in use/` — obsolete/replaced scripts, kept for reference. `old scripts/` holds
+  the individual scripts the master now covers.
+- `broken/` — non-functional scripts pending fix or deletion.
+- `semi-uso/` — partially-used scripts.
+- `backup/` — dated copies of the master and reference HTMLs.
 
 ## Key Patterns
 
@@ -212,9 +220,9 @@ to `RhythmGame.ini`.
 
 **WMI usage:** `brightness.ahk` controls monitor brightness via `WmiMonitorBrightness` / `wmiMonitorBrightNessMethods` COM queries — not via Windows API.
 
-**Inter-process messaging:** `AHK_Manager.ahk` uses `PostMessage` to send control signals (Reload, Suspend, Pause) to other AHK processes by hwnd.
+**Inter-process messaging:** The AHK Manager uses `PostMessage` to send control signals (Reload, Suspend, Pause) to other AHK processes by hwnd.
 
-**Clipboard manipulation:** `Ctrl+F2` opens a case-converter GUI (in the master, and also as the standalone `ConvertCase.ahk`): it grabs the selection, previews all 25 styles (text / code / file-name families) and pastes the chosen one back. It saves/restores the clipboard around both the copy and the paste to avoid clobbering user content. In the master the functions carry a `Cc` prefix — the natural names (`Join`, `Flash`, `ToUpperCase`) are too generic for a shared file; the standalone script is the same code without it.
+**Clipboard manipulation:** `Ctrl+F2` opens a case-converter GUI (in the master; the archived standalone is `not in use/old scripts/ConvertCase.ahk`): it grabs the selection, previews all 25 styles (text / code / file-name families) and pastes the chosen one back. It saves/restores the clipboard around both the copy and the paste to avoid clobbering user content. In the master the functions carry a `Cc` prefix — the natural names (`Join`, `Flash`, `ToUpperCase`) are too generic for a shared file; the standalone script is the same code without it.
 
 ## Hardcoded Paths to Be Aware Of
 

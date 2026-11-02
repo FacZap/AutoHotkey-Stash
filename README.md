@@ -4,7 +4,7 @@ Colección de scripts de AutoHotkey que uso o he usado, o en los que estoy traba
 
 ## Uso rápido
 
-1. Instalar [AutoHotkey v2](https://www.autohotkey.com/). Los scripts en v1 (`traymond-timer/`, `Cycler_Windows_v3.ahk`) necesitan además AHK v1.1; el launcher elige la versión según el `#Requires` de cada script.
+1. Instalar [AutoHotkey v2](https://www.autohotkey.com/). Los scripts en v1 (`traymond-timer/`) necesitan además AHK v1.1; el launcher elige la versión según el `#Requires` de cada script.
 2. Clonar en `C:\autohotkey` (varios scripts asumen esa ruta).
 3. Ejecutar `^^AHK_Unified_Master.ahk`: un solo proceso que reemplaza a más de 20 scripts sueltos.
 4. `Ctrl+Alt+R` abre el AHK Manager (recargar, suspender, pausar o cerrar scripts).
@@ -25,7 +25,7 @@ Colección de scripts de AutoHotkey que uso o he usado, o en los que estoy traba
 | `^^AHK_Unified_Master.ahk` | Script principal: remapeos, fechas (`k+ddd`…), ventanas y pestañas, brillo, volumen, conversor de mayúsculas, timers. |
 | Scripts auxiliares | `ClipboardOCR`, `SimpleReminders/`, `KillBrowsers/`, `GreenshotSlowMouse`, `ColdTurkeyActivado`, `traymond-timer/`, `RhythmGame`. Corren en procesos aparte; el master ofrece lanzarlos al iniciar. |
 | `MacroRecorder.ahk`, `SimpleMacroRecorder.ahk` | Grabación y reproducción de macros. |
-| `not in use/`, `semi-uso/`, `broken/` | Scripts viejos, a medio usar o rotos, guardados como referencia. |
+| Otros sueltos | `Sleep_Timer`, `AutoClicker_CtrlAltJ`, `prevent-AFK`, `AltTab_Button` y algunos más chicos. |
 
 ## Datos personales
 

@@ -1,2 +1,0 @@
-﻿<!>^Backspace::
-Send {Esc}
