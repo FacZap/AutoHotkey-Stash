@@ -59,7 +59,7 @@ same window is reachable from the Manager's `Aux Scripts…` button.
 |---|---|---|
 | `traymond-timer/traymond-timer.ahk` | v1 | `Win+Shift+Z` hide + countdown. Needs Traymond.exe running or it exits with a MsgBox, so the launcher checks first. |
 | `traymond-timer/restore-at-fixed-time.ahk` | v1 | No hotkeys; daily 16:40 restore-all sweep. |
-| `ClipboardOCR.ahk` | v2 | `Ctrl+Alt+O` |
+| `ClipboardOCR.ahk` | v2 | `Ctrl+Alt+O` OCR, `Ctrl+Alt+I` pin the image |
 | `ColdTurkeyActivado.ahk` | v2 | No hotkeys; asks for its config on launch. |
 | `GreenshotSlowMouse.ahk` | v2 | Polls for Greenshot's capture overlay. Each capture starts at slow factor 0; while the overlay is up, the mouse wheel (bound under `#HotIf`) changes it in 10 % steps. Does not need Greenshot running to start. |
 | `KillBrowsers/KillBrowsers.ahk` | v2 | `Ctrl+Alt+K` |
@@ -150,6 +150,8 @@ that cycle visits (all / tabs only / windows only) without touching the list.
 `ClipboardOCR.ahk` (v2, standalone) OCRs the image in the clipboard with `Ctrl+Alt+O`
 and shows the text in an editable GUI (copy / save .txt / save .png / discard).
 Both save buttons write timestamped files to the Windows Downloads folder.
+`Ctrl+Alt+I` pins a snapshot of the clipboard image in an always-on-top
+window (one per press, `Esc` closes it, shrunk to fit the screen).
 
 It depends on `OCR.ahk`, a vendored copy of Descolada's wrapper around the
 Windows.Media.Ocr UWP API — no external OCR engine or install needed.

@@ -5,6 +5,7 @@
 ;                      recognized text in an editable GUI.
 ;
 ; Ctrl+Alt+O   OCR the clipboard image
+; Ctrl+Alt+I   Show the clipboard image in a floating always-on-top window
 ;
 ; GUI buttons: Copy text / Save .txt / Save image / Discard.
 ; Both save buttons write to the Windows Downloads folder.
@@ -19,6 +20,34 @@ global OcrBitmap := 0          ; GDI+ bitmap of the captured image
 global OcrGdipToken := 0
 
 ^!o::RunClipboardOcr()
+^!i::ShowClipboardImage()
+
+; Pins a snapshot of the clipboard image in its own always-on-top window.
+; Each press opens a new one; Esc or the close button dismisses it.
+ShowClipboardImage() {
+    hBitmap := GetClipboardHBitmap()
+    if !hBitmap {
+        Flash("No image in the clipboard.")
+        return
+    }
+
+    bm := Buffer(A_PtrSize = 8 ? 32 : 24, 0)
+    DllCall("GetObject", "ptr", hBitmap, "int", bm.Size, "ptr", bm)
+    w := NumGet(bm, 4, "int"), h := NumGet(bm, 8, "int")
+
+    ; Shrink to fit the work area, keeping the aspect ratio.
+    MonitorGetWorkArea(, &left, &top, &right, &bottom)
+    scale := Min(1, (right - left) * 0.9 / w, (bottom - top) * 0.9 / h)
+
+    ; -DPIScale keeps the image 1:1 instead of stretching it by the display scale.
+    g := Gui("+AlwaysOnTop +ToolWindow -DPIScale","Clipboard image  " w "x" h)
+    g.MarginX := 0, g.MarginY := 0
+    ; The Picture control takes ownership of hBitmap and deletes it with the window.
+    g.AddPicture("w" Round(w * scale) " h" Round(h * scale), "HBITMAP:" hBitmap)
+    g.OnEvent("Escape", (g) => g.Destroy())
+    g.OnEvent("Close", (g) => g.Destroy())
+    g.Show()
+}
 
 RunClipboardOcr() {
     global OcrBitmap

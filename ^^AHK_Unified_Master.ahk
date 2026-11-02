@@ -3251,7 +3251,7 @@ global gAuxScripts := [
     { id: "clipboard_ocr", ver: "v2", needs: "",
       label: "Clipboard OCR",
       path:  A_ScriptDir "\ClipboardOCR.ahk",
-      desc:  "Ctrl+Alt+O: OCR de la imagen del portapapeles en una ventana editable" },
+      desc:  "Ctrl+Alt+O: OCR de la imagen del portapapeles · Ctrl+Alt+I: verla en una ventana flotante" },
 
     { id: "cold_turkey", ver: "v2", needs: "",
       label: "Bloque CT (Cold Turkey)",
